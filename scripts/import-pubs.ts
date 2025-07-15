@@ -36,7 +36,7 @@ async function run() {
     if (props["food"] === "yes") tags.push("food");
     if (props["real_ale"]) tags.push("real_ale");
 
-    if (!name || !lat || !lng) continue; // skip incomplete records
+    if (!name || !lat || !lng) continue;
 
     try {
       await prisma.pub.create({
