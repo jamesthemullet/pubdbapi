@@ -1,0 +1,65 @@
+import fs from "fs";
+import path from "path";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+async function run() {
+  const raw = fs.readFileSync(
+    path.join(__dirname, "../export.geojson"),
+    "utf-8"
+  );
+  const data = JSON.parse(raw);
+
+  const features = data.features;
+
+  for (const feature of features) {
+    const props = feature.properties || {};
+    const coords = feature.geometry?.coordinates || [];
+
+    const name = props.name;
+    const city = props["addr:city"] || "London";
+    const postcode = props["addr:postcode"] || "";
+    const street = props["addr:street"] || "";
+    const number = props["addr:housenumber"] || "";
+    const address = `${number} ${street}`.trim();
+
+    const lat = coords[1];
+    const lng = coords[0];
+    const website = props.website || null;
+
+    const tags = [];
+
+    if (props.outdoor_seating === "yes") tags.push("beer_garden");
+    if (props["diet:vegan"] === "yes") tags.push("vegan");
+    if (props["diet:vegetarian"] === "yes") tags.push("vegetarian");
+    if (props["food"] === "yes") tags.push("food");
+    if (props["real_ale"]) tags.push("real_ale");
+
+    if (!name || !lat || !lng) continue; // skip incomplete records
+
+    try {
+      await prisma.pub.create({
+        data: {
+          name,
+          city,
+          postcode,
+          address,
+          lat,
+          lng,
+          website,
+          description: null,
+          imageUrl: null,
+          tags,
+        },
+      });
+      console.log(`✅ Added pub: ${name}`);
+    } catch (err) {
+      console.error(`❌ Failed to insert pub ${name}:`, err);
+    }
+  }
+
+  await prisma.$disconnect();
+}
+
+run();
