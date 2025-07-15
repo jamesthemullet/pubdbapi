@@ -26,4 +26,9 @@ model Pub {
   imageUrl    String?
   tags        String[]
   createdAt   DateTime @default(now())
+  operator  String?
+  area        String?
+  phone       String?
+  borough     String?
+  openingHours String?
 }

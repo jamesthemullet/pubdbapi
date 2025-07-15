@@ -24,8 +24,13 @@ const pubSchema = z.object({
 app.use(cors());
 app.use(express.json());
 
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
 app.get("/pubs", async (req, res) => {
-  const { city, tag } = req.query;
+  const { city, tag, name } = req.query;
   let where: any = {};
 
   if (city) {
@@ -34,6 +39,13 @@ app.get("/pubs", async (req, res) => {
 
   if (tag) {
     where.tags = { has: String(tag) };
+  }
+
+  if (name) {
+    where.name = {
+      contains: String(name),
+      mode: "insensitive",
+    };
   }
 
   const pubs = await prisma.pub.findMany({ where });

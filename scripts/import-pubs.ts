@@ -23,6 +23,8 @@ async function run() {
     const street = props["addr:street"] || "";
     const number = props["addr:housenumber"] || "";
     const address = `${number} ${street}`.trim();
+    const operator = props.operator || null;
+    const openingHours = props["opening_hours"] || null;
 
     const lat = coords[1];
     const lng = coords[0];
@@ -51,6 +53,11 @@ async function run() {
           description: null,
           imageUrl: null,
           tags,
+          operator,
+          area: null,
+          phone: props.phone || null,
+          borough: null,
+          openingHours,
         },
       });
       console.log(`✅ Added pub: ${name}`);
