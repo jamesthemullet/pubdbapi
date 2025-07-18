@@ -40,6 +40,7 @@ model User {
   emailVerified DateTime?
   image         String?
   approved      Boolean  @default(false)
+  admin         Boolean  @default(false)
 
   accounts      Account[]
   sessions      Session[]
