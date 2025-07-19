@@ -19,8 +19,8 @@ model Pub {
   city        String
   address     String
   postcode    String
-  lat         Float
-  lng         Float
+  lat         Float?
+  lng         Float?
   website     String?
   description String?
   imageUrl    String?
