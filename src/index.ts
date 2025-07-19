@@ -119,6 +119,25 @@ app.post("/pubs", async (req, res) => {
   res.status(201).json(pub);
 });
 
+app.patch("/pubs/:id", async (req, res) => {
+  const { id } = req.params;
+  const partialPubSchema = pubSchema.partial();
+  const parsed = partialPubSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+
+  try {
+    const pub = await prisma.pub.update({
+      where: { id },
+      data: parsed.data,
+    });
+    res.json(pub);
+  } catch (err) {
+    return res.status(404).json({ error: "Pub not found or update failed" });
+  }
+});
+
 app.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
