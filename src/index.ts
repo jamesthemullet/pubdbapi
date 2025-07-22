@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { PrismaClient } from "@prisma/client";
+import crypto from "crypto";
+import { addHours } from "date-fns";
 
 const app = express();
 const prisma = new PrismaClient();
@@ -27,11 +29,11 @@ interface AuthenticatedRequest extends Request {
   user?: { userId: string; email: string };
 }
 
-function authMiddleware(
+const authMiddleware = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) {
+) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: "Missing token" });
   const token = authHeader.split(" ")[1];
@@ -54,7 +56,7 @@ function authMiddleware(
   } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
-}
+};
 
 const pubSchema = z.object({
   name: z.string().min(2),
@@ -159,14 +161,27 @@ app.post("/register", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
   }
+
   const { name, email, password } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing)
     return res.status(409).json({ error: "Email already registered" });
+
   const hashed = await bcrypt.hash(password, 10);
+
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const verificationExpiry = addHours(new Date(), 24);
+
   const user = await prisma.user.create({
-    data: { name, email, approved: false },
+    data: {
+      name,
+      email,
+      approved: false,
+      verificationToken,
+      verificationExpiry,
+    },
   });
+
   await prisma.account.create({
     data: {
       userId: user.id,
@@ -176,6 +191,11 @@ app.post("/register", async (req, res) => {
       access_token: hashed,
     },
   });
+
+  console.log(
+    `Verify at: http://localhost:3000/verify?token=${verificationToken}`
+  );
+
   res.status(201).json({ message: "User registered" });
 });
 
