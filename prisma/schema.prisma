@@ -42,6 +42,9 @@ model User {
   approved      Boolean  @default(false)
   admin         Boolean  @default(false)
 
+  verificationToken  String?
+  verificationExpiry DateTime?
+
   accounts      Account[]
   sessions      Session[]
 }

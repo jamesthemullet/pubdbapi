@@ -115,6 +115,22 @@ app.post("/pubs", async (req, res) => {
     return res.status(400).json({ errors: parsed.error.flatten() });
   }
 
+  const existing = await prisma.pub.findFirst({
+    where: {
+      name: { equals: parsed.data.name, mode: "insensitive" },
+      OR: [
+        { address: { equals: parsed.data.address, mode: "insensitive" } },
+        { postcode: parsed.data.postcode },
+      ],
+    },
+  });
+
+  if (existing) {
+    return res
+      .status(409)
+      .json({ error: "Pub with this name already exists at this location" });
+  }
+
   const pub = await prisma.pub.create({ data: parsed.data });
   res.status(201).json(pub);
 });
