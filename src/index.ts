@@ -157,6 +157,36 @@ app.patch("/pubs/:id", async (req, res) => {
   }
 });
 
+app.delete(
+  "/pubs/:id",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { admin: true, approved: true },
+    });
+
+    if (!currentUser || (!currentUser.admin && !currentUser.approved)) {
+      return res
+        .status(403)
+        .json({ error: "Admin or approved user access required" });
+    }
+
+    const { id } = req.params;
+
+    try {
+      await prisma.pub.delete({
+        where: { id },
+      });
+      res.json({ message: "Pub deleted successfully" });
+    } catch (err) {
+      return res.status(404).json({ error: "Pub not found" });
+    }
+  }
+);
+
 app.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -221,7 +251,13 @@ app.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, account.access_token);
   if (!valid) return res.status(401).json({ error: "Invalid credentials" });
   const token = jwt.sign(
-    { userId: user.id, email: user.email, approved: user.approved },
+    {
+      userId: user.id,
+      email: user.email,
+      approved: user.approved,
+      admin: user.admin,
+      emailVerified: user.emailVerified,
+    },
     JWT_SECRET,
     {
       expiresIn: "7d",
