@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { addHours } from "date-fns";
 import { sendVerificationEmail } from "./utils/sendVerificationEmail";
+import { sendResetEmail } from "./utils/sendResetEmail";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -25,6 +26,15 @@ const registerSchema = z.object({
 
 const loginSchema = z.object({
   email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const resetRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string(),
   password: z.string().min(6),
 });
 
@@ -268,6 +278,81 @@ app.post("/login", async (req, res) => {
 
 app.post("/logout", authMiddleware, async (req, res) => {
   res.json({ message: "Logged out" });
+});
+
+app.post("/forgot-password", async (req, res) => {
+  const parsed = resetRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+
+  const { email } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    return res.json({
+      message: "If the email exists, a reset link has been sent",
+    });
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetExpiry = addHours(new Date(), 1); // 1 hour expiry
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      resetToken,
+      resetExpiry,
+    },
+  });
+
+  await sendResetEmail(email, resetToken);
+
+  res.json({ message: "If the email exists, a reset link has been sent" });
+});
+
+app.post("/reset-password", async (req, res) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+
+  const { token, password } = parsed.data;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetToken: token,
+      resetExpiry: {
+        gt: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json({ error: "Reset token is invalid or expired" });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  await prisma.account.updateMany({
+    where: {
+      userId: user.id,
+      provider: "local",
+    },
+    data: {
+      access_token: hashed,
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      resetToken: null,
+      resetExpiry: null,
+    },
+  });
+
+  res.json({ message: "Password has been reset successfully" });
 });
 
 app.get("/verify", async (req, res) => {
