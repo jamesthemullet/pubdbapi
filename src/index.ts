@@ -3,10 +3,13 @@ import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { addHours } from "date-fns";
+import { sendVerificationEmail } from "./utils/sendVerificationEmail";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
-console.log("Prisma Client initialised");
 
 import { z } from "zod";
 import jwt from "jsonwebtoken";
@@ -73,8 +76,6 @@ const pubSchema = z.object({
 
 app.use(cors());
 app.use(express.json());
-
-console.log("DATABASE_URL is:", process.env.DATABASE_URL);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
@@ -192,9 +193,7 @@ app.post("/register", async (req, res) => {
     },
   });
 
-  console.log(
-    `Verify at: http://localhost:3000/verify?token=${verificationToken}`
-  );
+  await sendVerificationEmail(email, verificationToken);
 
   res.status(201).json({ message: "User registered" });
 });
@@ -207,6 +206,13 @@ app.post("/login", async (req, res) => {
   const { email, password } = parsed.data;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  if (!user.emailVerified) {
+    return res
+      .status(403)
+      .json({ error: "Please verify your email before logging in" });
+  }
+
   const account = await prisma.account.findFirst({
     where: { userId: user.id, provider: "local" },
   });
@@ -228,6 +234,38 @@ app.post("/logout", authMiddleware, async (req, res) => {
   res.json({ message: "Logged out" });
 });
 
+app.get("/verify", async (req, res) => {
+  const { token } = req.query;
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).send("Invalid or missing token.");
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      verificationToken: token,
+      verificationExpiry: {
+        gt: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    return res.status(400).send("Verification link is invalid or expired.");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      verificationToken: null,
+      verificationExpiry: null,
+    },
+  });
+
+  res.send("✅ Your email has been verified. You can now log in.");
+});
+
 app.get(
   "/me",
   authMiddleware,
@@ -242,6 +280,7 @@ app.get(
       name: user.name,
       email: user.email,
       approved: user.approved,
+      emailVerified: user.emailVerified,
     });
   }
 );
@@ -270,8 +309,3 @@ app.get(
     res.json(users);
   }
 );
-
-const port = process.env.PORT || 4000;
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
