@@ -5,6 +5,11 @@ import crypto from "crypto";
 import { addHours } from "date-fns";
 import { sendVerificationEmail } from "./utils/sendVerificationEmail";
 import { sendResetEmail } from "./utils/sendResetEmail";
+import {
+  createAuditLog,
+  getClientInfo,
+  getChangedFields,
+} from "./utils/auditLog";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -122,50 +127,95 @@ app.get("/pubs/:id", async (req, res) => {
   res.json(pub);
 });
 
-app.post("/pubs", async (req, res) => {
-  const parsed = pubSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ errors: parsed.error.flatten() });
-  }
+app.post(
+  "/pubs",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
-  const existing = await prisma.pub.findFirst({
-    where: {
-      name: { equals: parsed.data.name, mode: "insensitive" },
-      OR: [
-        { address: { equals: parsed.data.address, mode: "insensitive" } },
-        { postcode: parsed.data.postcode },
-      ],
-    },
-  });
+    const parsed = pubSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ errors: parsed.error.flatten() });
+    }
 
-  if (existing) {
-    return res
-      .status(409)
-      .json({ error: "Pub with this name already exists at this location" });
-  }
-
-  const pub = await prisma.pub.create({ data: parsed.data });
-  res.status(201).json(pub);
-});
-
-app.patch("/pubs/:id", async (req, res) => {
-  const { id } = req.params;
-  const partialPubSchema = pubSchema.partial();
-  const parsed = partialPubSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ errors: parsed.error.flatten() });
-  }
-
-  try {
-    const pub = await prisma.pub.update({
-      where: { id },
-      data: parsed.data,
+    const existing = await prisma.pub.findFirst({
+      where: {
+        name: { equals: parsed.data.name, mode: "insensitive" },
+        OR: [
+          { address: { equals: parsed.data.address, mode: "insensitive" } },
+          { postcode: parsed.data.postcode },
+        ],
+      },
     });
-    res.json(pub);
-  } catch (err) {
-    return res.status(404).json({ error: "Pub not found or update failed" });
+
+    if (existing) {
+      return res
+        .status(409)
+        .json({ error: "Pub with this name already exists at this location" });
+    }
+
+    const pub = await prisma.pub.create({ data: parsed.data });
+
+    const clientInfo = getClientInfo(req);
+    await createAuditLog({
+      action: "CREATE",
+      entity: "Pub",
+      entityId: pub.id,
+      userId: req.user.userId,
+      newValues: pub,
+      ...clientInfo,
+    });
+
+    res.status(201).json(pub);
   }
-});
+);
+
+app.patch(
+  "/pubs/:id",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    const { id } = req.params;
+    const partialPubSchema = pubSchema.partial();
+    const parsed = partialPubSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ errors: parsed.error.flatten() });
+    }
+
+    try {
+      const originalPub = await prisma.pub.findUnique({ where: { id } });
+      if (!originalPub) {
+        return res.status(404).json({ error: "Pub not found" });
+      }
+
+      const updatedPub = await prisma.pub.update({
+        where: { id },
+        data: parsed.data,
+      });
+
+      const { oldValues, newValues } = getChangedFields(
+        originalPub,
+        updatedPub
+      );
+      const clientInfo = getClientInfo(req);
+
+      await createAuditLog({
+        action: "UPDATE",
+        entity: "Pub",
+        entityId: id,
+        userId: req.user.userId,
+        oldValues,
+        newValues,
+        ...clientInfo,
+      });
+
+      res.json(updatedPub);
+    } catch (err) {
+      return res.status(404).json({ error: "Pub not found or update failed" });
+    }
+  }
+);
 
 app.delete(
   "/pubs/:id",
@@ -187,9 +237,25 @@ app.delete(
     const { id } = req.params;
 
     try {
+      const originalPub = await prisma.pub.findUnique({ where: { id } });
+      if (!originalPub) {
+        return res.status(404).json({ error: "Pub not found" });
+      }
+
       await prisma.pub.delete({
         where: { id },
       });
+
+      const clientInfo = getClientInfo(req);
+      await createAuditLog({
+        action: "DELETE",
+        entity: "Pub",
+        entityId: id,
+        userId: req.user.userId,
+        oldValues: originalPub,
+        ...clientInfo,
+      });
+
       res.json({ message: "Pub deleted successfully" });
     } catch (err) {
       return res.status(404).json({ error: "Pub not found" });
@@ -428,5 +494,41 @@ app.get(
       },
     });
     res.json(users);
+  }
+);
+
+// Get audit logs (admin only)
+app.get(
+  "/audit-logs",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { admin: true },
+    });
+    if (!currentUser || !currentUser.admin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const { entity, action, entityId, limit = "50" } = req.query;
+
+    const where: any = {};
+    if (entity) where.entity = String(entity);
+    if (action) where.action = String(action);
+    if (entityId) where.entityId = String(entityId);
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where,
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
+      orderBy: { timestamp: "desc" },
+      take: parseInt(String(limit)),
+    });
+
+    res.json(auditLogs);
   }
 );

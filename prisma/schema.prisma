@@ -50,6 +50,7 @@ model User {
 
   accounts      Account[]
   sessions      Session[]
+  auditLogs     AuditLog[]
 }
 
 model Account {
@@ -78,4 +79,22 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String  
+  entity    String
+  entityId  String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  timestamp DateTime @default(now())
+  
+
+  oldValues Json? 
+  newValues Json?
+  
+
+  ipAddress String?
+  userAgent String? 
 }
