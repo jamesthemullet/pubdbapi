@@ -26,6 +26,7 @@ router.get(
         borough,
         postcode,
         area,
+        country,
       } = req.query;
 
       const pageNum = parseInt(page as string);
@@ -87,6 +88,14 @@ router.get(
         };
       }
 
+      // Filter by country
+      if (country) {
+        where.country = {
+          contains: String(country),
+          mode: "insensitive",
+        };
+      }
+
       const [pubs, total] = await Promise.all([
         prisma.pub.findMany({
           where,
@@ -116,6 +125,7 @@ router.get(
           borough: borough || null,
           postcode: postcode || null,
           area: area || null,
+          country: country || null,
         },
       });
     } catch (error) {
