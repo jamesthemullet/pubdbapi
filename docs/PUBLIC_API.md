@@ -1,11 +1,32 @@
 # Public API Documentation
 
-A public REST API for accessing UK pub data without authentication. This API is separate from the main application endpoints and designed for external consumption.
+A public REST API for accessing UK pub data without authentication. This API is s### 3. Find Pubs Near Location
+
+```
+GET /api/v1/pubs/near
+```
+
+Find pubs within a specified radius of a geographic location.
+
+**Query Parameters:**
+
+- `lat` (number, required): Latitude
+- `lng` (number, required): Longitude
+- `radius` (number): Search radius in kilometers (default: 5)
+- `limit` (number): Maximum results (default: 20, max: 50)
+
+**Example:**
+
+````bash
+curl "http://localhost:4000/api/v1/pubs/near?lat=51.5074&lng=-0.1278&radius=2"
+```n application endpoints and designed for external consumption.
 
 ## Base URL
 
-```
-http://localhost:4000/public/v1
+````
+
+http://localhost:4000/api/v1
+
 ```
 
 ## Endpoints
@@ -13,8 +34,10 @@ http://localhost:4000/public/v1
 ### 1. Get All Pubs
 
 ```
-GET /public/v1/pubs
-```
+
+GET /api/v1/pubs
+
+````
 
 Retrieve a paginated list of pubs with optional filtering.
 
@@ -33,8 +56,8 @@ Retrieve a paginated list of pubs with optional filtering.
 **Example:**
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs?city=London&limit=10"
-```
+curl "http://localhost:4000/api/v1/pubs?city=London&limit=10"
+````
 
 **Response:**
 
@@ -85,7 +108,7 @@ curl "http://localhost:4000/public/v1/pubs?city=London&limit=10"
 ### 2. Get Single Pub
 
 ```
-GET /public/v1/pubs/:id
+GET /api/v1/pubs/:id
 ```
 
 Retrieve a specific pub by its ID.
@@ -93,7 +116,7 @@ Retrieve a specific pub by its ID.
 **Example:**
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs/pub_12345"
+curl "http://localhost:4000/api/v1/pubs/pub_12345"
 ```
 
 **Response:**
@@ -154,7 +177,7 @@ curl "http://localhost:4000/public/v1/pubs/near?lat=51.5074&lng=-0.1278&radius=2
 ### 4. Get Statistics
 
 ```
-GET /public/v1/stats
+GET /api/v1/stats
 ```
 
 Get comprehensive database statistics including counts and top lists.
@@ -162,7 +185,7 @@ Get comprehensive database statistics including counts and top lists.
 **Example:**
 
 ```bash
-curl "http://localhost:4000/public/v1/stats"
+curl "http://localhost:4000/api/v1/stats"
 ```
 
 **Response:**
@@ -201,7 +224,7 @@ curl "http://localhost:4000/public/v1/stats"
 ### 5. Get Filter Options
 
 ```
-GET /public/v1/filters
+GET /api/v1/filters
 ```
 
 Get all available filter values for use in dropdown menus or autocomplete.
@@ -209,7 +232,7 @@ Get all available filter values for use in dropdown menus or autocomplete.
 **Example:**
 
 ```bash
-curl "http://localhost:4000/public/v1/filters"
+curl "http://localhost:4000/api/v1/filters"
 ```
 
 **Response:**
@@ -230,7 +253,7 @@ curl "http://localhost:4000/public/v1/filters"
 ### 6. API Information
 
 ```
-GET /public/v1/info
+GET /api/v1/info
 ```
 
 Get information about the API and available endpoints.
@@ -275,25 +298,25 @@ Currently no rate limiting is applied, but this may change in the future. Please
 ### Search for pubs in London with food
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs?city=London&tag=food"
+curl "http://localhost:4000/api/v1/pubs?city=London&tag=food"
 ```
 
 ### Find pubs near a specific location
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs/near?lat=51.5074&lng=-0.1278&radius=1"
+curl "http://localhost:4000/api/v1/pubs/near?lat=51.5074&lng=-0.1278&radius=1"
 ```
 
 ### Get pubs by operator with pagination
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs?operator=Greene King&page=2&limit=25"
+curl "http://localhost:4000/api/v1/pubs?operator=Greene King&page=2&limit=25"
 ```
 
 ### Search by pub name
 
 ```bash
-curl "http://localhost:4000/public/v1/pubs?name=Red Lion"
+curl "http://localhost:4000/api/v1/pubs?name=Red Lion"
 ```
 
 ## Notes

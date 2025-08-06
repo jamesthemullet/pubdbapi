@@ -24,7 +24,7 @@ app.use("/auth", authRoutes);
 app.use("/pubs", pubRoutes);
 app.use("/users", userRoutes);
 app.use("/audit", auditRoutes);
-app.use("/public/v1", publicRoutes); // Public API v1 (no auth required)
+app.use("/api/v1", publicRoutes); // Public API v1 (no auth required)
 
 // Health check
 app.get("/health", (req, res) => {

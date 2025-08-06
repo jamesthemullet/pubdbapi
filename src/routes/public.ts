@@ -389,14 +389,13 @@ router.get("/info", async (req: Request, res: Response) => {
         "https://github.com/jamesthemullet/pubdbapi/blob/main/docs/PUBLIC_API.md",
     },
     endpoints: {
-      "GET /public/v1/pubs":
-        "Get all pubs with optional filtering and pagination",
-      "GET /public/v1/pubs/:id": "Get a specific pub by ID",
-      "GET /public/v1/pubs/near": "Find pubs near a location (lat/lng)",
-      "GET /public/v1/stats": "Get database statistics and top lists",
-      "GET /public/v1/filters":
+      "GET /api/v1/pubs": "Get all pubs with optional filtering and pagination",
+      "GET /api/v1/pubs/:id": "Get a specific pub by ID",
+      "GET /api/v1/pubs/near": "Find pubs near a location (lat/lng)",
+      "GET /api/v1/stats": "Get database statistics and top lists",
+      "GET /api/v1/filters":
         "Get available filter values for cities, operators, etc.",
-      "GET /public/v1/info": "Get API information",
+      "GET /api/v1/info": "Get API information",
     },
     usage: {
       rateLimit: "Currently no rate limiting (subject to change)",
@@ -407,13 +406,12 @@ router.get("/info", async (req: Request, res: Response) => {
   });
 });
 
-// Helper function to calculate distance between two points
-function calculateDistance(
+const calculateDistance = (
   lat1: number,
   lng1: number,
   lat2: number,
   lng2: number
-): number {
+): number => {
   const R = 6371; // Earth's radius in kilometers
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -425,6 +423,6 @@ function calculateDistance(
       Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
+};
 
 export default router;
