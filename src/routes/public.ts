@@ -1,10 +1,39 @@
-import { Router, Response, Request } from "express";
+import { Router, Response, Request, NextFunction } from "express";
 import { prisma } from "../server";
 
 const router = Router();
 
+// API Key validation middleware
+const validateApiKey = (req: Request, res: Response, next: NextFunction) => {
+  const apiKey = req.headers["x-api-key"] || req.query.api_key;
+
+  if (!apiKey) {
+    return res.status(401).json({
+      success: false,
+      error: "Unauthorized",
+      message:
+        "API key is required. Include it in the 'X-API-Key' header or 'api_key' query parameter.",
+    });
+  }
+
+  // For now, we'll validate against environment variable or a simple check
+  // In production, this would check against a database of valid API keys
+  const validApiKey = process.env.PUBLIC_API_KEY || "demo-api-key-12345";
+
+  if (apiKey !== validApiKey) {
+    return res.status(401).json({
+      success: false,
+      error: "Unauthorized",
+      message: "Invalid API key.",
+    });
+  }
+
+  // API key is valid, continue to the route handler
+  next();
+};
+
 // Get all pubs (public endpoint)
-router.get("/pubs", async (req: Request, res: Response) => {
+router.get("/pubs", validateApiKey, async (req: Request, res: Response) => {
   try {
     const {
       city,
@@ -116,7 +145,7 @@ router.get("/pubs", async (req: Request, res: Response) => {
 });
 
 // Get single pub by ID (public endpoint)
-router.get("/pubs/:id", async (req: Request, res: Response) => {
+router.get("/pubs/:id", validateApiKey, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -145,94 +174,98 @@ router.get("/pubs/:id", async (req: Request, res: Response) => {
 });
 
 // Search pubs by location (latitude/longitude proximity)
-router.get("/pubs/near", async (req: Request, res: Response) => {
-  try {
-    const { lat, lng, radius = "5", limit = "20" } = req.query;
+router.get(
+  "/pubs/near",
+  validateApiKey,
+  async (req: Request, res: Response) => {
+    try {
+      const { lat, lng, radius = "5", limit = "20" } = req.query;
 
-    if (!lat || !lng) {
-      return res.status(400).json({
+      if (!lat || !lng) {
+        return res.status(400).json({
+          success: false,
+          error: "Bad request",
+          message: "Latitude and longitude are required",
+        });
+      }
+
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lng as string);
+      const radiusKm = parseFloat(radius as string);
+      const limitNum = Math.min(parseInt(limit as string), 50);
+
+      if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusKm)) {
+        return res.status(400).json({
+          success: false,
+          error: "Bad request",
+          message: "Invalid latitude, longitude, or radius values",
+        });
+      }
+
+      // Find pubs with lat/lng within approximate radius
+      // This is a simple bounding box calculation - for production you might want PostGIS
+      const latDelta = radiusKm / 111; // Rough conversion: 1 degree ≈ 111km
+      const lngDelta = radiusKm / (111 * Math.cos((latitude * Math.PI) / 180));
+
+      const pubs = await prisma.pub.findMany({
+        where: {
+          lat: {
+            gte: latitude - latDelta,
+            lte: latitude + latDelta,
+          },
+          lng: {
+            gte: longitude - lngDelta,
+            lte: longitude + lngDelta,
+          },
+        },
+        take: limitNum,
+        orderBy: { name: "asc" },
+      });
+
+      // Calculate actual distance and sort by distance
+      const pubsWithDistance = pubs
+        .map((pub) => {
+          if (!pub.lat || !pub.lng) return null;
+
+          const distance = calculateDistance(
+            latitude,
+            longitude,
+            pub.lat,
+            pub.lng
+          );
+          return {
+            ...pub,
+            distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
+          };
+        })
+        .filter(
+          (pub): pub is NonNullable<typeof pub> =>
+            pub !== null && pub.distance <= radiusKm
+        )
+        .sort((a, b) => a.distance - b.distance);
+
+      res.json({
+        success: true,
+        data: pubsWithDistance,
+        search: {
+          center: { lat: latitude, lng: longitude },
+          radius: radiusKm,
+          found: pubsWithDistance.length,
+        },
+      });
+    } catch (error) {
+      console.error("Public API error:", error);
+      res.status(500).json({
         success: false,
-        error: "Bad request",
-        message: "Latitude and longitude are required",
+        error: "Internal server error",
+        message: "Failed to search pubs by location",
       });
     }
-
-    const latitude = parseFloat(lat as string);
-    const longitude = parseFloat(lng as string);
-    const radiusKm = parseFloat(radius as string);
-    const limitNum = Math.min(parseInt(limit as string), 50);
-
-    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusKm)) {
-      return res.status(400).json({
-        success: false,
-        error: "Bad request",
-        message: "Invalid latitude, longitude, or radius values",
-      });
-    }
-
-    // Find pubs with lat/lng within approximate radius
-    // This is a simple bounding box calculation - for production you might want PostGIS
-    const latDelta = radiusKm / 111; // Rough conversion: 1 degree ≈ 111km
-    const lngDelta = radiusKm / (111 * Math.cos((latitude * Math.PI) / 180));
-
-    const pubs = await prisma.pub.findMany({
-      where: {
-        lat: {
-          gte: latitude - latDelta,
-          lte: latitude + latDelta,
-        },
-        lng: {
-          gte: longitude - lngDelta,
-          lte: longitude + lngDelta,
-        },
-      },
-      take: limitNum,
-      orderBy: { name: "asc" },
-    });
-
-    // Calculate actual distance and sort by distance
-    const pubsWithDistance = pubs
-      .map((pub) => {
-        if (!pub.lat || !pub.lng) return null;
-
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          pub.lat,
-          pub.lng
-        );
-        return {
-          ...pub,
-          distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
-        };
-      })
-      .filter(
-        (pub): pub is NonNullable<typeof pub> =>
-          pub !== null && pub.distance <= radiusKm
-      )
-      .sort((a, b) => a.distance - b.distance);
-
-    res.json({
-      success: true,
-      data: pubsWithDistance,
-      search: {
-        center: { lat: latitude, lng: longitude },
-        radius: radiusKm,
-        found: pubsWithDistance.length,
-      },
-    });
-  } catch (error) {
-    console.error("Public API error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to search pubs by location",
-    });
   }
-});
+);
 
 // Get pub statistics (public endpoint)
-router.get("/stats", async (req: Request, res: Response) => {
+router.get("/stats", validateApiKey, async (req: Request, res: Response) => {
   try {
     const [totalPubs, citiesCount, operatorsCount, boroughsCount, tagsCount] =
       await Promise.all([
@@ -317,7 +350,7 @@ router.get("/stats", async (req: Request, res: Response) => {
 });
 
 // Get unique values for filtering
-router.get("/filters", async (req: Request, res: Response) => {
+router.get("/filters", validateApiKey, async (req: Request, res: Response) => {
   try {
     const [cities, operators, boroughs, areas, allTags] = await Promise.all([
       prisma.pub.findMany({
@@ -398,6 +431,9 @@ router.get("/info", async (req: Request, res: Response) => {
       "GET /api/v1/info": "Get API information",
     },
     usage: {
+      authentication: "API key required for all endpoints except /info",
+      apiKey:
+        "Include API key in 'X-API-Key' header or 'api_key' query parameter",
       rateLimit: "Currently no rate limiting (subject to change)",
       pagination: "Use 'page' and 'limit' parameters (max 100 items per page)",
       filtering: "Multiple filters can be combined",
