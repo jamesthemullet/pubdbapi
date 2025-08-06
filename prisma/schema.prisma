@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,43 +8,43 @@ datasource db {
 }
 
 model Pub {
-  id          String   @id @default(cuid())
-  name        String
-  city        String
-  address     String
-  postcode    String
-  lat         Float?
-  lng         Float?
-  website     String?
-  description String?
-  imageUrl    String?
-  tags        String[]
-  createdAt   DateTime @default(now())
-  operator  String?
-  area        String?
-  phone       String?
-  borough     String?
+  id           String   @id @default(cuid())
+  name         String
+  city         String
+  address      String
+  postcode     String
+  lat          Float?
+  lng          Float?
+  website      String?
+  description  String?
+  imageUrl     String?
+  tags         String[]
+  createdAt    DateTime @default(now())
+  operator     String?
+  area         String?
+  phone        String?
+  borough      String?
   openingHours String?
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String?
-  email         String?  @unique
-  emailVerified Boolean  @default(false)
-  image         String?
-  approved      Boolean  @default(false)
-  admin         Boolean  @default(false)
-
-  verificationToken  String?
-  verificationExpiry DateTime?
-  
-  resetToken         String?
-  resetExpiry        DateTime?
-
-  accounts      Account[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
+  id                                           String          @id @default(cuid())
+  name                                         String?
+  email                                        String?         @unique
+  image                                        String?
+  approved                                     Boolean         @default(false)
+  admin                                        Boolean         @default(false)
+  verificationExpiry                           DateTime?
+  verificationToken                            String?
+  emailVerified                                Boolean         @default(false)
+  resetExpiry                                  DateTime?
+  resetToken                                   String?
+  accounts                                     Account[]
+  apiKeys                                      ApiKey[]
+  ApiKeyRequest_ApiKeyRequest_reviewedByToUser ApiKeyRequest[] @relation("ApiKeyRequest_reviewedByToUser")
+  ApiKeyRequest_ApiKeyRequest_userIdToUser     ApiKeyRequest[] @relation("ApiKeyRequest_userIdToUser")
+  auditLogs                                    AuditLog[]
+  sessions                                     Session[]
 }
 
 model Account {
@@ -66,8 +60,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id])
+  user              User    @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
 }
@@ -77,24 +70,90 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  action    String  
+  action    String
   entity    String
   entityId  String
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
   timestamp DateTime @default(now())
-  
-
-  oldValues Json? 
+  oldValues Json?
   newValues Json?
-  
-
   ipAddress String?
-  userAgent String? 
+  userAgent String?
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  userId      String
+  tier        ApiKeyTier @default(TESTING)
+  rateLimit   Int       @default(1000)
+  usageCount  Int       @default(0)
+  lastUsed    DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  permissions String[]  @default(["read:pubs"])
+  
+  // New tier-based rate limiting
+  requestsPerHour   Int @default(100)
+  requestsPerDay    Int @default(1000)
+  requestsPerMonth  Int @default(10000)
+  currentMonthUsage Int @default(0)
+  monthlyResetDate  DateTime @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id])
+  usage       ApiKeyUsage[]
+
+  @@index([keyHash])
+  @@index([userId])
+}
+
+model ApiKeyRequest {
+  id                                  String    @id
+  userId                              String
+  businessName                        String
+  useCase                             String
+  estimatedUsage                      Int
+  contactEmail                        String?
+  status                              String    @default("PENDING")
+  createdAt                           DateTime  @default(now())
+  reviewedAt                          DateTime?
+  reviewedBy                          String?
+  adminNotes                          String?
+  User_ApiKeyRequest_reviewedByToUser User?     @relation("ApiKeyRequest_reviewedByToUser", fields: [reviewedBy], references: [id])
+  User_ApiKeyRequest_userIdToUser     User      @relation("ApiKeyRequest_userIdToUser", fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([userId])
+}
+
+model ApiKeyUsage {
+  id            String   @id @default(cuid())
+  apiKeyId      String
+  timestamp     DateTime @default(now())
+  endpoint      String
+  method        String
+  statusCode    Int
+  responseTime  Int?
+  ipAddress     String?
+  userAgent     String?
+  
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id])
+  
+  @@index([apiKeyId, timestamp])
+  @@index([timestamp])
+}
+
+enum ApiKeyTier {
+  TESTING      // Limited access for testing
+  DEVELOPER    // Single developer with reasonable access
+  BUSINESS     // Small business with higher limits
 }
