@@ -13,7 +13,7 @@ export interface TierLimits {
 
 export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
   TESTING: {
-    requestsPerHour: 50,
+    requestsPerHour: 20,
     requestsPerDay: 200,
     requestsPerMonth: 1000,
     maxResultsPerRequest: 10,
