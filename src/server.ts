@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth";
 import pubRoutes from "./routes/pubs";
 import userRoutes from "./routes/users";
 import auditRoutes from "./routes/audit";
+import publicRoutes from "./routes/public";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use("/auth", authRoutes);
 app.use("/pubs", pubRoutes);
 app.use("/users", userRoutes);
 app.use("/audit", auditRoutes);
+app.use("/public/v1", publicRoutes); // Public API v1 (no auth required)
 
 // Health check
 app.get("/health", (req, res) => {
