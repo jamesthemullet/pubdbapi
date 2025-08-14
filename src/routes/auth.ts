@@ -25,10 +25,20 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ errors: parsed.error.flatten() });
   }
 
-  const { name, email, password } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  const { name, username, email, password } = parsed.data;
+
+  // Check if email already exists
+  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingEmail) {
     return res.status(409).json({ error: "Email already registered" });
+  }
+
+  // Check if username already exists
+  const existingUsername = await prisma.user.findUnique({
+    where: { username },
+  });
+  if (existingUsername) {
+    return res.status(409).json({ error: "Username already taken" });
   }
 
   const hashed = await bcrypt.hash(password, 10);
@@ -38,6 +48,7 @@ router.post("/register", async (req, res) => {
   const user = await prisma.user.create({
     data: {
       name,
+      username,
       email,
       approved: false,
       verificationToken,
@@ -216,6 +227,7 @@ router.get(
     res.json({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       approved: user.approved,
       emailVerified: user.emailVerified,
