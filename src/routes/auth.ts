@@ -6,6 +6,7 @@ import { addHours } from "date-fns";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { authMiddleware } from "../middleware/auth";
+import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
 import {
   AuthenticatedRequest,
   registerSchema,
@@ -232,6 +233,120 @@ router.get(
       approved: user.approved,
       emailVerified: user.emailVerified,
     });
+  }
+);
+
+// Get user dashboard with API key info and rate limits
+router.get(
+  "/dashboard",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: {
+          apiKeys: {
+            where: { isActive: true },
+            select: {
+              name: true,
+              tier: true,
+              keyPrefix: true,
+              isActive: true,
+              createdAt: true,
+              lastUsed: true,
+              usageCount: true,
+            },
+          },
+        },
+      });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      // Get rate limit info for each API key
+      const apiKeysWithLimits = await Promise.all(
+        user.apiKeys.map(async (apiKey) => {
+          // Find the full API key record to get the ID for rate limit checking
+          const fullApiKey = await prisma.apiKey.findFirst({
+            where: {
+              keyPrefix: apiKey.keyPrefix,
+              userId: user.id,
+              isActive: true,
+            },
+          });
+
+          if (!fullApiKey) {
+            return {
+              ...apiKey,
+              remaining: { hour: 0, day: 0, month: 0 },
+              limits: {
+                requestsPerHour: 0,
+                requestsPerDay: 0,
+                requestsPerMonth: 0,
+              },
+              resetTimes: {
+                hour: new Date(),
+                day: new Date(),
+                month: new Date(),
+              },
+            };
+          }
+
+          const rateLimitInfo = await checkRateLimit(
+            fullApiKey.id,
+            fullApiKey.tier
+          );
+          const tierLimits = TIER_LIMITS[fullApiKey.tier];
+
+          return {
+            name: apiKey.name,
+            tier: apiKey.tier,
+            keyPrefix: apiKey.keyPrefix,
+            isActive: apiKey.isActive,
+            createdAt: apiKey.createdAt,
+            lastUsed: apiKey.lastUsed,
+            usageCount: apiKey.usageCount,
+            remaining: rateLimitInfo.remaining,
+            limits: {
+              requestsPerHour: tierLimits.requestsPerHour,
+              requestsPerDay: tierLimits.requestsPerDay,
+              requestsPerMonth: tierLimits.requestsPerMonth,
+            },
+            resetTimes: rateLimitInfo.resetTimes,
+            features: {
+              allowLocationSearch: tierLimits.allowLocationSearch,
+              allowStats: tierLimits.allowStats,
+            },
+          };
+        })
+      );
+
+      res.json({
+        user: {
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          approved: user.approved,
+          emailVerified: user.emailVerified,
+        },
+        apiKeys: apiKeysWithLimits,
+        summary: {
+          totalApiKeys: apiKeysWithLimits.length,
+          totalUsage: apiKeysWithLimits.reduce(
+            (sum, key) => sum + (key.usageCount || 0),
+            0
+          ),
+        },
+      });
+    } catch (error) {
+      console.error("Dashboard error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to load dashboard data",
+      });
+    }
   }
 );
 
