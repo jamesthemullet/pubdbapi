@@ -95,7 +95,7 @@ model ApiKey {
   keyHash     String    @unique
   keyPrefix   String
   userId      String
-  tier        ApiKeyTier @default(TESTING)
+  tier        ApiKeyTier @default(HOBBY)
   rateLimit   Int       @default(1000)
   usageCount  Int       @default(0)
   lastUsed    DateTime?
@@ -155,7 +155,7 @@ model ApiKeyUsage {
 }
 
 enum ApiKeyTier {
-  TESTING      // Limited access for testing
+  HOBBY        // Limited access for hobby projects
   DEVELOPER    // Single developer with reasonable access
   BUSINESS     // Small business with higher limits
 }

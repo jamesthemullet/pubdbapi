@@ -30,25 +30,19 @@ router.get(
       } = req.query;
 
       const pageNum = parseInt(page as string);
-      const limitNum = Math.min(
-        parseInt(limit as string),
-        req.apiKey?.limits.maxResultsPerRequest || 100
-      ); // Tier-based limit
+      const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 results per request
       const skip = (pageNum - 1) * limitNum;
 
       let where: any = {};
 
-      // Filter by city
       if (city) {
         where.city = { contains: String(city), mode: "insensitive" };
       }
 
-      // Filter by tag
       if (tag) {
         where.tags = { has: String(tag) };
       }
 
-      // Filter by pub name
       if (name) {
         where.name = {
           contains: String(name),
@@ -56,7 +50,6 @@ router.get(
         };
       }
 
-      // Filter by operator/brewery
       if (operator) {
         where.operator = {
           contains: String(operator),
@@ -64,7 +57,6 @@ router.get(
         };
       }
 
-      // Filter by borough
       if (borough) {
         where.borough = {
           contains: String(borough),
@@ -72,7 +64,6 @@ router.get(
         };
       }
 
-      // Filter by postcode
       if (postcode) {
         where.postcode = {
           contains: String(postcode),
@@ -80,7 +71,6 @@ router.get(
         };
       }
 
-      // Filter by area
       if (area) {
         where.area = {
           contains: String(area),
@@ -88,7 +78,6 @@ router.get(
         };
       }
 
-      // Filter by country
       if (country) {
         where.country = {
           contains: String(country),

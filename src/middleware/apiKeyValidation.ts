@@ -184,15 +184,5 @@ export const enforceTierLimits = (
     return next();
   }
 
-  const limits = req.apiKey.limits;
-
-  // Enforce limit parameter based on tier
-  if (req.query.limit) {
-    const requestedLimit = parseInt(req.query.limit as string);
-    if (requestedLimit > limits.maxResultsPerRequest) {
-      req.query.limit = limits.maxResultsPerRequest.toString();
-    }
-  }
-
   next();
 };
