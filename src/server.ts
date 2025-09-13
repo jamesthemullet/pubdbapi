@@ -9,6 +9,7 @@ import pubRoutes from "./routes/pubs";
 import userRoutes from "./routes/users";
 import auditRoutes from "./routes/audit";
 import publicRoutes from "./routes/public";
+import paymentsRoutes from "./routes/payments";
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use("/pubs", pubRoutes);
 app.use("/users", userRoutes);
 app.use("/audit", auditRoutes);
 app.use("/api/v1", publicRoutes); // Public API v1 (no auth required)
+app.use("/payments", paymentsRoutes); // Stripe payments
 
 // Health check
 app.get("/health", (req, res) => {

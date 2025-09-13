@@ -29,22 +29,31 @@ model Pub {
 }
 
 model User {
-  id                                           String          @id @default(cuid())
+  id                                           String              @id @default(cuid())
   name                                         String?
-  username                                     String?         @unique
-  email                                        String?         @unique
+  username                                     String?             @unique
+  email                                        String?             @unique
   image                                        String?
-  approved                                     Boolean         @default(false)
-  admin                                        Boolean         @default(false)
+  approved                                     Boolean             @default(false)
+  admin                                        Boolean             @default(false)
   verificationExpiry                           DateTime?
   verificationToken                            String?
-  emailVerified                                Boolean         @default(false)
+  emailVerified                                Boolean             @default(false)
   resetExpiry                                  DateTime?
   resetToken                                   String?
+  
+  // Subscription fields
+  subscriptionTier                             ApiKeyTier          @default(HOBBY)
+  subscriptionStatus                           SubscriptionStatus  @default(INACTIVE)
+  stripeCustomerId                             String?             @unique
+  stripeSubscriptionId                         String?             @unique
+  subscriptionStartDate                        DateTime?
+  subscriptionEndDate                          DateTime?
+  
   accounts                                     Account[]
   apiKeys                                      ApiKey[]
-  ApiKeyRequest_ApiKeyRequest_reviewedByToUser ApiKeyRequest[] @relation("ApiKeyRequest_reviewedByToUser")
-  ApiKeyRequest_ApiKeyRequest_userIdToUser     ApiKeyRequest[] @relation("ApiKeyRequest_userIdToUser")
+  ApiKeyRequest_ApiKeyRequest_reviewedByToUser ApiKeyRequest[]     @relation("ApiKeyRequest_reviewedByToUser")
+  ApiKeyRequest_ApiKeyRequest_userIdToUser     ApiKeyRequest[]     @relation("ApiKeyRequest_userIdToUser")
   auditLogs                                    AuditLog[]
   sessions                                     Session[]
 }
@@ -158,4 +167,13 @@ enum ApiKeyTier {
   HOBBY        // Limited access for hobby projects
   DEVELOPER    // Single developer with reasonable access
   BUSINESS     // Small business with higher limits
+}
+
+enum SubscriptionStatus {
+  INACTIVE     // No active subscription
+  ACTIVE       // Active subscription
+  PAST_DUE     // Payment failed, grace period
+  CANCELED     // User canceled subscription
+  INCOMPLETE   // Subscription created but payment not completed
+  TRIALING     // In trial period
 }

@@ -92,11 +92,6 @@ const pubSchema = z.object({
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
 app.get("/pubs", async (req, res) => {
   const { city, tag, name } = req.query;
   let where: any = {};
@@ -532,3 +527,8 @@ app.get(
     res.json(auditLogs);
   }
 );
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

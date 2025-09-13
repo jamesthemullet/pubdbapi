@@ -3,7 +3,7 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationEmail(to: string, token: string) {
-  const verifyUrl = `http://localhost:4000/verify?token=${token}`;
+  const verifyUrl = `http://localhost:4000/auth/verify?token=${token}`;
 
   try {
     await resend.emails.send({

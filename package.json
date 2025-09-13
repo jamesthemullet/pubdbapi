@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/server.ts\"",
     "build": "tsc && prisma generate",
-    "start": "node dist/server.js"
+    "start": "node dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.2",
     "prisma": "^6.11.1",
     "resend": "^4.7.0",
+    "stripe": "^18.5.0",
     "zod": "^4.0.5"
   },
   "devDependencies": {
