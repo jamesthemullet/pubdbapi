@@ -258,7 +258,7 @@ app.delete(
   }
 );
 
-app.post("/register", async (req, res) => {
+app.post("/auth/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -299,7 +299,7 @@ app.post("/register", async (req, res) => {
   res.status(201).json({ message: "User registered" });
 });
 
-app.post("/login", async (req, res) => {
+app.post("/auth/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -337,7 +337,7 @@ app.post("/login", async (req, res) => {
   res.json({ token });
 });
 
-app.post("/logout", authMiddleware, async (req, res) => {
+app.post("/auth/logout", authMiddleware, async (req, res) => {
   res.json({ message: "Logged out" });
 });
 
@@ -416,7 +416,7 @@ app.post("/reset-password", async (req, res) => {
   res.json({ message: "Password has been reset successfully" });
 });
 
-app.get("/verify", async (req, res) => {
+app.get("/auth/verify", async (req, res) => {
   const { token } = req.query;
 
   if (!token || typeof token !== "string") {
@@ -449,7 +449,7 @@ app.get("/verify", async (req, res) => {
 });
 
 app.get(
-  "/me",
+  "/auth/me",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
@@ -463,6 +463,32 @@ app.get(
       email: user.email,
       approved: user.approved,
       emailVerified: user.emailVerified,
+    });
+  }
+);
+
+// Dashboard endpoint for frontend
+app.get(
+  "/auth/dashboard",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        approved: user.approved,
+        emailVerified: user.emailVerified,
+      },
+      message: "Dashboard data loaded successfully",
     });
   }
 );
