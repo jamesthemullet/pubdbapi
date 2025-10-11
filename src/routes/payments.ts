@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import Stripe from "stripe";
+import crypto from "crypto";
 import { authMiddleware } from "../middleware/auth";
 import { AuthenticatedRequest } from "../types";
 import { PrismaClient } from "@prisma/client";
@@ -93,7 +94,7 @@ router.post(
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/cancel`,
+        cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/`,
         customer_email: req.user.email,
         metadata: {
           userId: req.user.userId,
@@ -108,7 +109,6 @@ router.post(
   }
 );
 
-// Verify checkout session and update subscription
 router.post(
   "/verify-session",
   authMiddleware,
@@ -122,17 +122,14 @@ router.post(
         return res.status(400).json({ error: "sessionId is required" });
       }
 
-      // Retrieve the session from Stripe
       const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-      // Verify the session belongs to this user
       if (session.metadata?.userId !== req.user.userId) {
         return res
           .status(403)
           .json({ error: "Session does not belong to user" });
       }
 
-      // Check if payment was successful
       if (session.payment_status !== "paid") {
         return res.status(400).json({
           error: "Payment not completed",
@@ -140,7 +137,6 @@ router.post(
         });
       }
 
-      // Get subscription details (only for paid tiers)
       let subscriptionTier: "DEVELOPER" | "BUSINESS";
       let subscriptionStatus: "ACTIVE" | "INACTIVE" | "INCOMPLETE" =
         "INCOMPLETE";
@@ -157,8 +153,6 @@ router.post(
       );
       const priceId = subscription.items.data[0]?.price.id;
 
-      // Map price IDs to subscription tiers (only paid tiers)
-      // You'll need to replace these with your actual Stripe price IDs
       const priceTierMap: {
         [key: string]: "DEVELOPER" | "BUSINESS";
       } = {
@@ -177,14 +171,13 @@ router.post(
       subscriptionStatus =
         subscription.status === "active" ? "ACTIVE" : "INCOMPLETE";
 
-      // Update user subscription in database
       const subscriptionUpdateData = {
         subscriptionTier,
         subscriptionStatus,
         stripeCustomerId: session.customer as string,
         stripeSubscriptionId: session.subscription as string,
         subscriptionStartDate: new Date(),
-        subscriptionEndDate: null, // For active subscriptions, this is null
+        subscriptionEndDate: null,
       };
 
       console.log(
@@ -205,6 +198,67 @@ router.post(
         updatedUser.subscriptionStatus
       );
 
+      // Check if user already has an API key for this tier
+      const existingApiKey = await prisma.apiKey.findFirst({
+        where: {
+          userId: req.user.userId,
+          tier: subscriptionTier,
+          isActive: true,
+        },
+      });
+
+      let apiKey = existingApiKey;
+
+      if (!existingApiKey) {
+        const fullKey = `pk_${subscriptionTier.toLowerCase()}_${crypto.randomBytes(24).toString("hex")}`;
+        console.log(10, fullKey);
+        const keyPrefix = fullKey.substring(0, 12) + "...";
+        const keyHash = crypto
+          .createHash("sha256")
+          .update(fullKey)
+          .digest("hex");
+
+        const tierLimits = {
+          HOBBY: { hour: 100, day: 1000, month: 10000 },
+          DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
+          BUSINESS: { hour: 5000, day: 50000, month: 500000 },
+        };
+
+        const limits = tierLimits[subscriptionTier] || tierLimits.HOBBY;
+
+        apiKey = await prisma.apiKey.create({
+          data: {
+            name: `${subscriptionTier} API Key`,
+            keyHash,
+            keyPrefix,
+            userId: req.user.userId,
+            tier: subscriptionTier,
+            requestsPerHour: limits.hour,
+            requestsPerDay: limits.day,
+            requestsPerMonth: limits.month,
+            permissions:
+              subscriptionTier === "BUSINESS"
+                ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
+                : subscriptionTier === "DEVELOPER"
+                  ? ["read:pubs", "location:search"]
+                  : ["read:pubs"],
+            monthlyResetDate: new Date(
+              new Date().getFullYear(),
+              new Date().getMonth() + 1,
+              1
+            ),
+          },
+        });
+
+        console.log(
+          20,
+          "Created API key:",
+          apiKey,
+          "for user:",
+          req.user.userId
+        );
+      }
+
       res.json({
         success: true,
         subscription: {
@@ -213,7 +267,16 @@ router.post(
           customerId: session.customer,
           subscriptionId: session.subscription,
         },
-        message: "Payment verified and subscription updated successfully",
+        apiKey: apiKey
+          ? {
+              name: apiKey.name,
+              keyPrefix: apiKey.keyPrefix,
+              tier: apiKey.tier,
+              permissions: apiKey.permissions,
+            }
+          : null,
+        message:
+          "Payment verified, subscription updated, and API key created successfully",
       });
     } catch (err) {
       console.error("Error verifying session:", err);
