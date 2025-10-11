@@ -252,6 +252,7 @@ router.get(
             select: {
               name: true,
               tier: true,
+              keyStatus: true,
               keyPrefix: true,
               isActive: true,
               createdAt: true,
@@ -264,10 +265,8 @@ router.get(
 
       if (!user) return res.status(404).json({ error: "User not found" });
 
-      // Get rate limit info for each API key
       const apiKeysWithLimits = await Promise.all(
         user.apiKeys.map(async (apiKey) => {
-          // Find the full API key record to get the ID for rate limit checking
           const fullApiKey = await prisma.apiKey.findFirst({
             where: {
               keyPrefix: apiKey.keyPrefix,
@@ -299,9 +298,10 @@ router.get(
           );
           const tierLimits = TIER_LIMITS[fullApiKey.tier];
 
-          return {
+            return {
             name: apiKey.name,
             tier: apiKey.tier,
+              keyStatus: apiKey.keyStatus,
             keyPrefix: apiKey.keyPrefix,
             isActive: apiKey.isActive,
             createdAt: apiKey.createdAt,

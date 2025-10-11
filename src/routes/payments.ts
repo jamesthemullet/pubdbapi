@@ -233,6 +233,7 @@ router.post(
             keyPrefix,
             userId: req.user.userId,
             tier: subscriptionTier,
+            keyStatus: "ACTIVE",
             requestsPerHour: limits.hour,
             requestsPerDay: limits.day,
             requestsPerMonth: limits.month,
@@ -272,6 +273,7 @@ router.post(
               name: apiKey.name,
               keyPrefix: apiKey.keyPrefix,
               tier: apiKey.tier,
+              keyStatus: (apiKey as any).keyStatus,
               permissions: apiKey.permissions,
             }
           : null,
@@ -320,6 +322,82 @@ router.get(
       });
     } catch (err) {
       console.error("Error getting subscription status:", err);
+      res.status(500).json({ error: "Something went wrong" });
+    }
+  }
+);
+
+// Cancel subscription via frontend: set cancel_at_period_end so keys expire at period end
+router.post(
+  "/cancel-subscription",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    console.log(10);
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: { stripeSubscriptionId: true },
+      });
+
+      if (!user || !user.stripeSubscriptionId) {
+        return res
+          .status(400)
+          .json({ error: "No Stripe subscription to cancel" });
+      }
+
+      const updated = await stripe.subscriptions.update(
+        user.stripeSubscriptionId,
+        {
+          cancel_at_period_end: true,
+        }
+      );
+
+      const periodEnd = (updated as any).current_period_end
+        ? new Date((updated as any).current_period_end * 1000)
+        : null;
+
+      await prisma.user.update({
+        where: { id: req.user.userId },
+        data: {
+          subscriptionStatus: "CANCELLED",
+          subscriptionEndDate: periodEnd,
+        },
+      });
+
+      // Update api keys to scheduled expire / revoked state via keyStatus
+      try {
+        await prisma.apiKey.updateMany({
+          where: { userId: req.user.userId },
+          data: { keyStatus: "SCHEDULED_EXPIRE" },
+        });
+      } catch (e) {
+        console.error(
+          "Failed to update apiKey.keyStatus on cancel for user",
+          req.user.userId,
+          e
+        );
+      }
+
+      // Set API keys to expire at period end (if available)
+      if (periodEnd) {
+        await prisma.apiKey.updateMany({
+          where: { userId: req.user.userId, isActive: true },
+          data: { expiresAt: periodEnd },
+        });
+      }
+
+      res.json({
+        success: true,
+        subscription: {
+          subscriptionId: updated.id,
+          cancelAtPeriodEnd: (updated as any).cancel_at_period_end,
+          currentPeriodEnd: periodEnd,
+        },
+      });
+    } catch (err) {
+      console.error("Error cancelling subscription:", err);
       res.status(500).json({ error: "Something went wrong" });
     }
   }

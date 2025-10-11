@@ -88,6 +88,18 @@ router.post("/", async (req: Request, res: Response) => {
           },
         });
 
+        // Update ApiKey key lifecycle status based on subscription
+        try {
+          await prisma.apiKey.updateMany({
+            where: { userId: user.id },
+            data: {
+              keyStatus: status === "CANCELED" ? "SCHEDULED_EXPIRE" : (status as any),
+            },
+          });
+        } catch (e) {
+          console.error("Failed to update apiKey.keyStatus for user", user.id, e);
+        }
+
         // Expire-at-period-end policy:
         // - If Stripe set cancel_at_period_end on the subscription, set API keys to expire
         //   at the subscription's current_period_end (if available).
@@ -102,13 +114,17 @@ router.post("/", async (req: Request, res: Response) => {
           if (periodEnd) {
             await prisma.apiKey.updateMany({
               where: { userId: user.id, isActive: true },
-              data: { expiresAt: periodEnd },
+              data: { expiresAt: periodEnd, keyStatus: "SCHEDULED_EXPIRE" },
             });
           } else {
             // No period end provided: revoke immediately
             await prisma.apiKey.updateMany({
               where: { userId: user.id, isActive: true },
-              data: { isActive: false, expiresAt: new Date() },
+              data: {
+                isActive: false,
+                expiresAt: new Date(),
+                keyStatus: "REVOKED",
+              },
             });
           }
         }
@@ -135,6 +151,13 @@ router.post("/", async (req: Request, res: Response) => {
             console.log(
               `Marked user ${user.id} as PAST_DUE due to failed invoice`
             );
+            // Also mark api keys
+            await prisma.apiKey.updateMany({
+              where: { userId: user.id },
+              data: {
+                keyStatus: "SCHEDULED_EXPIRE",
+              },
+            });
           }
         }
         break;
@@ -154,6 +177,11 @@ router.post("/", async (req: Request, res: Response) => {
               data: { subscriptionStatus: "ACTIVE" },
             });
             console.log(`Marked user ${user.id} as ACTIVE after payment`);
+            // Also mark api keys
+            await prisma.apiKey.updateMany({
+              where: { userId: user.id },
+              data: { keyStatus: "ACTIVE" },
+            });
           }
         }
         break;

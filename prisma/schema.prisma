@@ -105,6 +105,8 @@ model ApiKey {
   keyPrefix   String
   userId      String
   tier        ApiKeyTier @default(HOBBY)
+  // Operational key lifecycle status
+  keyStatus   KeyStatus @default(ACTIVE)
   rateLimit   Int       @default(1000)
   usageCount  Int       @default(0)
   lastUsed    DateTime?
@@ -173,7 +175,14 @@ enum SubscriptionStatus {
   INACTIVE     // No active subscription
   ACTIVE       // Active subscription
   PAST_DUE     // Payment failed, grace period
-  CANCELED     // User canceled subscription
+  CANCELLED    // User cancelled subscription
   INCOMPLETE   // Subscription created but payment not completed
   TRIALING     // In trial period
+}
+
+enum KeyStatus {
+  ACTIVE
+  SCHEDULED_EXPIRE
+  EXPIRED
+  REVOKED
 }
