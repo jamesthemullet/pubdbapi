@@ -93,11 +93,16 @@ router.post("/", async (req: Request, res: Response) => {
           await prisma.apiKey.updateMany({
             where: { userId: user.id },
             data: {
-              keyStatus: status === "CANCELED" ? "SCHEDULED_EXPIRE" : (status as any),
+              keyStatus:
+                status === "CANCELED" ? "SCHEDULED_EXPIRE" : (status as any),
             },
           });
         } catch (e) {
-          console.error("Failed to update apiKey.keyStatus for user", user.id, e);
+          console.error(
+            "Failed to update apiKey.keyStatus for user",
+            user.id,
+            e
+          );
         }
 
         // Expire-at-period-end policy:
@@ -151,7 +156,6 @@ router.post("/", async (req: Request, res: Response) => {
             console.log(
               `Marked user ${user.id} as PAST_DUE due to failed invoice`
             );
-            // Also mark api keys
             await prisma.apiKey.updateMany({
               where: { userId: user.id },
               data: {
@@ -177,7 +181,7 @@ router.post("/", async (req: Request, res: Response) => {
               data: { subscriptionStatus: "ACTIVE" },
             });
             console.log(`Marked user ${user.id} as ACTIVE after payment`);
-            // Also mark api keys
+
             await prisma.apiKey.updateMany({
               where: { userId: user.id },
               data: { keyStatus: "ACTIVE" },
@@ -188,7 +192,6 @@ router.post("/", async (req: Request, res: Response) => {
       }
 
       default:
-        // Unknown/unhandled event
         break;
     }
 

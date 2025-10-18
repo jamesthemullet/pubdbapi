@@ -12,9 +12,67 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY environment variable is required");
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2025-08-27.basil",
+});
 
-// Upgrade to HOBBY tier (free)
+// Helper: prefer the SDK request helper if available, otherwise call Stripe REST via fetch
+async function stripeRawRequest(
+  method: "GET" | "POST",
+  path: string,
+  params?: Record<string, any>
+) {
+  if (typeof (stripe as any).request === "function") {
+    return await (stripe as any).request({ method, url: path, params });
+  }
+
+  const base = "https://api.stripe.com";
+  const url = base + path;
+  let fetchUrl = url;
+  let body: string | undefined = undefined;
+  if (params) {
+    const usp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      usp.append(k, String(v));
+    }
+    if (method === "GET") fetchUrl = `${url}?${usp.toString()}`;
+    else body = usp.toString();
+  }
+
+  const fetchFn: typeof fetch = (globalThis as any).fetch;
+  if (typeof fetchFn !== "function") {
+    throw new Error(
+      "No fetch available to call Stripe API; please run on Node 18+ or polyfill fetch"
+    );
+  }
+
+  const resp = await fetchFn(fetchUrl, {
+    method,
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      // Force a stable API version for REST fallbacks; allow override via env var
+      "Stripe-Version": process.env.STRIPE_API_VERSION || "2024-06-20",
+    },
+    body,
+  });
+
+  const text = await resp.text();
+  let json: any;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (e) {
+    throw new Error(`Stripe returned non-JSON response: ${text}`);
+  }
+
+  if (!resp.ok) {
+    const err = json && json.error ? json.error : text;
+    throw new Error(`Stripe API error ${resp.status}: ${JSON.stringify(err)}`);
+  }
+
+  return json;
+}
+
 router.post(
   "/upgrade-to-hobby",
   authMiddleware,
@@ -22,7 +80,6 @@ router.post(
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      // Update user to HOBBY tier immediately (no payment required)
       const hobbySubscriptionData = {
         subscriptionTier: "HOBBY" as const,
         subscriptionStatus: "ACTIVE" as const,
@@ -64,7 +121,6 @@ router.post(
   }
 );
 
-// Create checkout session (for DEVELOPER/BUSINESS tiers only)
 router.post(
   "/create-checkout-session",
   authMiddleware,
@@ -104,6 +160,226 @@ router.post(
       res.json({ url: session.url });
     } catch (err) {
       console.error("Error creating checkout session:", err);
+      res.status(500).json({ error: "Something went wrong" });
+    }
+  }
+);
+
+// Estimate proration cost when swapping an existing subscription to a new price
+router.post(
+  "/upgrade-estimate",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const { priceId } = req.body;
+      if (!priceId)
+        return res.status(400).json({ error: "priceId is required" });
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: { stripeCustomerId: true, stripeSubscriptionId: true },
+      });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      if (!user.stripeSubscriptionId || !user.stripeCustomerId) {
+        return res.json({ needsCheckout: true });
+      }
+
+      const subscription = await stripe.subscriptions.retrieve(
+        user.stripeSubscriptionId
+      );
+
+      const { prorationDate } = req.body as { prorationDate?: string | number };
+      const proration_date_seconds = prorationDate
+        ? Math.floor(new Date(prorationDate).getTime() / 1000)
+        : undefined;
+
+      const params: any = {
+        customer: subscription.customer as string,
+        subscription: subscription.id,
+      };
+      params["subscription_details[items][0][id]"] =
+        subscription.items.data[0].id;
+      params["subscription_details[items][0][price]"] = priceId;
+      if (proration_date_seconds) {
+        params["subscription_details[proration_date]"] = String(
+          proration_date_seconds
+        );
+      }
+
+      const upcoming = await stripeRawRequest(
+        "POST",
+        "/v1/invoices/create_preview",
+        params
+      );
+
+      const linesData: any[] = (upcoming.lines && upcoming.lines.data) || [];
+
+      const prorationOnlyCharge = linesData
+        .filter((l: any) => !!l.proration)
+        .reduce((s: number, l: any) => s + (l.amount || 0), 0);
+
+      const nextPeriodCharge = linesData
+        .filter((l: any) => !l.proration && l.price?.id === priceId)
+        .reduce((s: number, l: any) => s + (l.amount || 0), 0);
+
+      const proratedCharge = prorationOnlyCharge + nextPeriodCharge;
+
+      res.json({
+        estimatedAmount: upcoming.amount_due,
+        currency: upcoming.currency,
+        nextPaymentAttempt: upcoming.next_payment_attempt,
+        raw: upcoming,
+        proratedCharge,
+        prorationOnlyCharge,
+        nextPeriodCharge,
+      });
+    } catch (err) {
+      console.error("Error calculating upgrade estimate:", err);
+      res.status(500).json({ error: "Something went wrong" });
+    }
+  }
+);
+
+router.post(
+  "/perform-upgrade",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    console.log(15);
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const { priceId } = req.body;
+      if (!priceId)
+        return res.status(400).json({ error: "priceId is required" });
+
+      const priceTierMap: { [key: string]: "DEVELOPER" | "BUSINESS" } = {
+        price_1S6cBZ0k31jD9MVaQH1JSrAl: "DEVELOPER",
+        price_1S6cBq0k31jD9MVaRYKvxRek: "BUSINESS",
+      };
+
+      const mappedTier = priceTierMap[priceId];
+      if (!mappedTier) {
+        return res.status(400).json({ error: "Unknown price ID" });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: { stripeCustomerId: true, stripeSubscriptionId: true },
+      });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      if (!user.stripeSubscriptionId) {
+        return res.status(400).json({
+          error:
+            "No existing subscription to swap; create a checkout session instead",
+        });
+      }
+
+      const subscription = await stripe.subscriptions.retrieve(
+        user.stripeSubscriptionId as string
+      );
+      const currentItem =
+        (subscription.items.data && subscription.items.data[0]) || null;
+      if (!currentItem)
+        return res.status(400).json({ error: "Subscription has no items" });
+
+      const currentPriceId = (currentItem as any).price?.id;
+      if (currentPriceId === priceId) {
+        return res.json({ message: "Subscription already on target plan" });
+      }
+
+      const updatedSub = await stripe.subscriptions.update(
+        user.stripeSubscriptionId as string,
+        {
+          items: [{ id: (currentItem as any).id, price: priceId }],
+          proration_behavior: "create_prorations",
+          expand: ["latest_invoice.payment_intent", "latest_invoice"],
+        }
+      );
+
+      let paidInvoice = null;
+      const latestInvoice = (updatedSub as any).latest_invoice;
+      let paidInvoiceLocal = null;
+      if (latestInvoice) {
+        const invoiceId =
+          typeof latestInvoice === "string" ? latestInvoice : latestInvoice.id;
+        try {
+          paidInvoiceLocal =
+            typeof latestInvoice === "string"
+              ? await stripeRawRequest("GET", `/v1/invoices/${invoiceId}`)
+              : latestInvoice;
+        } catch (fetchErr) {
+          console.error(
+            "Failed to fetch latest invoice after subscription update:",
+            fetchErr
+          );
+        }
+      }
+      paidInvoice = paidInvoiceLocal;
+
+      const subscriptionUpdateData = {
+        subscriptionTier: mappedTier,
+        subscriptionStatus: (updatedSub.status === "active"
+          ? "ACTIVE"
+          : "INCOMPLETE") as any,
+        stripeCustomerId:
+          typeof updatedSub.customer === "string"
+            ? updatedSub.customer
+            : user.stripeCustomerId || null,
+        stripeSubscriptionId: updatedSub.id,
+        subscriptionStartDate: new Date(),
+        subscriptionEndDate: null,
+      };
+
+      await prisma.user.update({
+        where: { id: req.user.userId },
+        data: subscriptionUpdateData,
+      });
+
+      const tierLimits = {
+        HOBBY: { hour: 100, day: 1000, month: 10000 },
+        DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
+        BUSINESS: { hour: 5000, day: 50000, month: 500000 },
+      };
+      const limits = tierLimits[mappedTier];
+      const permissionsForTier =
+        mappedTier === "BUSINESS"
+          ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
+          : mappedTier === "DEVELOPER"
+            ? ["read:pubs", "location:search"]
+            : ["read:pubs"];
+
+      await prisma.apiKey.updateMany({
+        where: { userId: req.user.userId, isActive: true },
+        data: {
+          name: `${mappedTier} API Key`,
+          tier: mappedTier,
+          requestsPerHour: limits.hour,
+          requestsPerDay: limits.day,
+          requestsPerMonth: limits.month,
+          permissions: permissionsForTier,
+          keyStatus: "ACTIVE",
+        },
+      });
+
+      const representativeKey = await prisma.apiKey.findFirst({
+        where: { userId: req.user.userId, isActive: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      res.json({
+        success: true,
+        subscription: updatedSub,
+        paidInvoice,
+        apiKey: representativeKey || null,
+      });
+    } catch (err) {
+      console.error("Error performing upgrade:", err);
       res.status(500).json({ error: "Something went wrong" });
     }
   }
@@ -198,33 +474,55 @@ router.post(
         updatedUser.subscriptionStatus
       );
 
-      // Check if user already has an API key for this tier
-      const existingApiKey = await prisma.apiKey.findFirst({
-        where: {
-          userId: req.user.userId,
-          tier: subscriptionTier,
-          isActive: true,
-        },
+      // Upgrade all active API keys in-place to the new tier. If the user has
+      // no active keys, create one automatically and return its prefix/hash info.
+      const activeKeys = await prisma.apiKey.findMany({
+        where: { userId: req.user.userId, isActive: true },
       });
 
-      let apiKey = existingApiKey;
+      let apiKey = null;
 
-      if (!existingApiKey) {
+      const tierLimits = {
+        HOBBY: { hour: 100, day: 1000, month: 10000 },
+        DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
+        BUSINESS: { hour: 5000, day: 50000, month: 500000 },
+      };
+
+      const limits = tierLimits[subscriptionTier] || tierLimits.HOBBY;
+
+      const permissionsForTier =
+        subscriptionTier === "BUSINESS"
+          ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
+          : subscriptionTier === "DEVELOPER"
+            ? ["read:pubs", "location:search"]
+            : ["read:pubs"];
+
+      if (activeKeys && activeKeys.length > 0) {
+        // Update all active keys to the new tier, limits and permissions
+        await prisma.apiKey.updateMany({
+          where: { userId: req.user.userId, isActive: true },
+          data: {
+            name: `${subscriptionTier} API Key`,
+            tier: subscriptionTier,
+            requestsPerHour: limits.hour,
+            requestsPerDay: limits.day,
+            requestsPerMonth: limits.month,
+            permissions: permissionsForTier,
+            keyStatus: "ACTIVE",
+          },
+        });
+
+        apiKey = await prisma.apiKey.findFirst({
+          where: { userId: req.user.userId, isActive: true },
+          orderBy: { createdAt: "desc" },
+        });
+      } else {
         const fullKey = `pk_${subscriptionTier.toLowerCase()}_${crypto.randomBytes(24).toString("hex")}`;
-        console.log(10, fullKey);
         const keyPrefix = fullKey.substring(0, 12) + "...";
         const keyHash = crypto
           .createHash("sha256")
           .update(fullKey)
           .digest("hex");
-
-        const tierLimits = {
-          HOBBY: { hour: 100, day: 1000, month: 10000 },
-          DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
-          BUSINESS: { hour: 5000, day: 50000, month: 500000 },
-        };
-
-        const limits = tierLimits[subscriptionTier] || tierLimits.HOBBY;
 
         apiKey = await prisma.apiKey.create({
           data: {
@@ -237,12 +535,7 @@ router.post(
             requestsPerHour: limits.hour,
             requestsPerDay: limits.day,
             requestsPerMonth: limits.month,
-            permissions:
-              subscriptionTier === "BUSINESS"
-                ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
-                : subscriptionTier === "DEVELOPER"
-                  ? ["read:pubs", "location:search"]
-                  : ["read:pubs"],
+            permissions: permissionsForTier,
             monthlyResetDate: new Date(
               new Date().getFullYear(),
               new Date().getMonth() + 1,
@@ -258,6 +551,10 @@ router.post(
           "for user:",
           req.user.userId
         );
+
+        // Return the full key to the caller only once via metadata - we currently
+        // only return prefix in responses. If you want to show the full key here,
+        // we should return it in the response once and store only the hash.
       }
 
       res.json({
@@ -327,12 +624,10 @@ router.get(
   }
 );
 
-// Cancel subscription via frontend: set cancel_at_period_end so keys expire at period end
 router.post(
   "/cancel-subscription",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    console.log(10);
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
     try {
@@ -366,7 +661,6 @@ router.post(
         },
       });
 
-      // Update api keys to scheduled expire / revoked state via keyStatus
       try {
         await prisma.apiKey.updateMany({
           where: { userId: req.user.userId },
@@ -380,7 +674,6 @@ router.post(
         );
       }
 
-      // Set API keys to expire at period end (if available)
       if (periodEnd) {
         await prisma.apiKey.updateMany({
           where: { userId: req.user.userId, isActive: true },

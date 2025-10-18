@@ -298,10 +298,10 @@ router.get(
           );
           const tierLimits = TIER_LIMITS[fullApiKey.tier];
 
-            return {
+          return {
             name: apiKey.name,
             tier: apiKey.tier,
-              keyStatus: apiKey.keyStatus,
+            keyStatus: apiKey.keyStatus,
             keyPrefix: apiKey.keyPrefix,
             isActive: apiKey.isActive,
             createdAt: apiKey.createdAt,

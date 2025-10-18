@@ -22,7 +22,10 @@ const { PrismaClient } = require("@prisma/client");
       }
 
       if (k.keyStatus !== desired) {
-        await prisma.apiKey.update({ where: { id: k.id }, data: { keyStatus: desired } });
+        await prisma.apiKey.update({
+          where: { id: k.id },
+          data: { keyStatus: desired },
+        });
         updated++;
       }
     }
@@ -32,7 +35,9 @@ const { PrismaClient } = require("@prisma/client");
     process.exit(0);
   } catch (err) {
     console.error("Backfill failed:", err);
-    try { await prisma.$disconnect(); } catch (e) {}
+    try {
+      await prisma.$disconnect();
+    } catch (e) {}
     process.exit(1);
   }
 })();

@@ -45,7 +45,6 @@ export async function checkRateLimit(
   const limits = TIER_LIMITS[tier];
   const now = new Date();
 
-  // Get current API key data
   const apiKey = await prisma.apiKey.findUnique({
     where: { id: apiKeyId },
     select: {
@@ -62,7 +61,6 @@ export async function checkRateLimit(
     };
   }
 
-  // Check if we need to reset monthly usage
   const monthlyResetNeeded = now > apiKey.monthlyResetDate;
 
   if (monthlyResetNeeded) {
@@ -138,7 +136,6 @@ export async function recordApiUsage(
   userAgent?: string
 ): Promise<void> {
   await Promise.all([
-    // Record detailed usage
     prisma.apiKeyUsage.create({
       data: {
         apiKeyId,
@@ -150,7 +147,7 @@ export async function recordApiUsage(
         userAgent,
       },
     }),
-    // Update API key counters
+
     prisma.apiKey.update({
       where: { id: apiKeyId },
       data: {
