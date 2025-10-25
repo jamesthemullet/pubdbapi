@@ -16,7 +16,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-08-27.basil",
 });
 
-// Helper: prefer the SDK request helper if available, otherwise call Stripe REST via fetch
 async function stripeRawRequest(
   method: "GET" | "POST",
   path: string,
@@ -51,7 +50,6 @@ async function stripeRawRequest(
     headers: {
       Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      // Force a stable API version for REST fallbacks; allow override via env var
       "Stripe-Version": process.env.STRIPE_API_VERSION || "2024-06-20",
     },
     body,
@@ -83,10 +81,10 @@ router.post(
       const hobbySubscriptionData = {
         subscriptionTier: "HOBBY" as const,
         subscriptionStatus: "ACTIVE" as const,
-        stripeCustomerId: null, // No Stripe customer for free tier
-        stripeSubscriptionId: null, // No Stripe subscription for free tier
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
         subscriptionStartDate: new Date(),
-        subscriptionEndDate: null, // Free tier doesn't expire
+        subscriptionEndDate: null,
       };
 
       console.log(
@@ -165,7 +163,6 @@ router.post(
   }
 );
 
-// Estimate proration cost when swapping an existing subscription to a new price
 router.post(
   "/upgrade-estimate",
   authMiddleware,
@@ -474,8 +471,6 @@ router.post(
         updatedUser.subscriptionStatus
       );
 
-      // Upgrade all active API keys in-place to the new tier. If the user has
-      // no active keys, create one automatically and return its prefix/hash info.
       const activeKeys = await prisma.apiKey.findMany({
         where: { userId: req.user.userId, isActive: true },
       });
@@ -498,7 +493,6 @@ router.post(
             : ["read:pubs"];
 
       if (activeKeys && activeKeys.length > 0) {
-        // Update all active keys to the new tier, limits and permissions
         await prisma.apiKey.updateMany({
           where: { userId: req.user.userId, isActive: true },
           data: {
@@ -543,18 +537,6 @@ router.post(
             ),
           },
         });
-
-        console.log(
-          20,
-          "Created API key:",
-          apiKey,
-          "for user:",
-          req.user.userId
-        );
-
-        // Return the full key to the caller only once via metadata - we currently
-        // only return prefix in responses. If you want to show the full key here,
-        // we should return it in the response once and store only the hash.
       }
 
       res.json({
@@ -584,7 +566,6 @@ router.post(
   }
 );
 
-// Get current subscription status
 router.get(
   "/subscription-status",
   authMiddleware,
