@@ -424,6 +424,7 @@ router.post(
       const subscription = await stripe.subscriptions.retrieve(
         session.subscription as string
       );
+      console.log(45, subscription);
       const priceId = subscription.items.data[0]?.price.id;
 
       const priceTierMap: {
@@ -539,6 +540,11 @@ router.post(
         });
       }
 
+      // Extract billing day from billing_cycle_anchor for display
+      const billingDay = (subscription as any).billing_cycle_anchor
+        ? new Date((subscription as any).billing_cycle_anchor * 1000).getDate()
+        : null;
+
       res.json({
         success: true,
         subscription: {
@@ -546,6 +552,7 @@ router.post(
           status: subscriptionStatus,
           customerId: session.customer,
           subscriptionId: session.subscription,
+          billingDay,
         },
         apiKey: apiKey
           ? {
