@@ -72,7 +72,7 @@ async function stripeRawRequest(
 }
 
 router.post(
-  "/upgrade-to-hobby",
+  "/subscribe-to-hobby",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
@@ -104,16 +104,52 @@ router.post(
         updatedUser.subscriptionTier
       );
 
+      // Generate an API key for the HOBBY tier
+      const fullKey = `pk_hobby_${crypto.randomBytes(24).toString("hex")}`;
+      const keyPrefix = fullKey.substring(0, 12) + "...";
+      const keyHash = crypto.createHash("sha256").update(fullKey).digest("hex");
+
+      const apiKey = await prisma.apiKey.create({
+        data: {
+          name: "HOBBY API Key",
+          keyHash,
+          keyPrefix,
+          userId: req.user.userId,
+          tier: "HOBBY",
+          keyStatus: "ACTIVE",
+          requestsPerHour: 100,
+          requestsPerDay: 1000,
+          requestsPerMonth: 10000,
+          permissions: ["read:pubs"],
+          monthlyResetDate: new Date(
+            new Date().getFullYear(),
+            new Date().getMonth() + 1,
+            1
+          ),
+        },
+      });
+
+      const url = `${process.env.FRONTEND_URL || "http://localhost:3000"}/hobby-success`;
+
       res.json({
         success: true,
         subscription: {
           tier: "HOBBY",
           status: "ACTIVE",
-          message: "Successfully upgraded to HOBBY tier (free)",
+          message: "Successfully subscribed to HOBBY tier (free)",
         },
+        apiKey: {
+          name: apiKey.name,
+          keyPrefix: apiKey.keyPrefix,
+          tier: apiKey.tier,
+          keyStatus: apiKey.keyStatus,
+          permissions: apiKey.permissions,
+          key: fullKey,
+        },
+        url,
       });
     } catch (err) {
-      console.error("Error upgrading to HOBBY tier:", err);
+      console.error("Error subscribing to HOBBY tier:", err);
       res.status(500).json({ error: "Something went wrong" });
     }
   }
@@ -139,7 +175,7 @@ router.post(
 
       if (!priceTierMap[priceId]) {
         return res.status(400).json({
-          error: "Invalid price ID. Use /upgrade-to-hobby for free tier.",
+          error: "Invalid price ID. Use /subscribe-to-hobby for free tier.",
         });
       }
 
@@ -417,7 +453,7 @@ router.post(
       if (!session.subscription) {
         return res.status(400).json({
           error:
-            "No subscription found. This endpoint is only for paid tiers (DEVELOPER/BUSINESS). Use /upgrade-to-hobby for free tier.",
+            "No subscription found. This endpoint is only for paid tiers (DEVELOPER/BUSINESS). Use /subscribe-to-hobby for free tier.",
         });
       }
 
@@ -477,6 +513,7 @@ router.post(
       });
 
       let apiKey = null;
+      let fullApiKey: string | null = null;
 
       const tierLimits = {
         HOBBY: { hour: 100, day: 1000, month: 10000 },
@@ -538,6 +575,9 @@ router.post(
             ),
           },
         });
+
+        // Store the full key to return it once
+        fullApiKey = fullKey;
       }
 
       // Extract billing day from billing_cycle_anchor for display
@@ -561,6 +601,7 @@ router.post(
               tier: apiKey.tier,
               keyStatus: (apiKey as any).keyStatus,
               permissions: apiKey.permissions,
+              ...(fullApiKey ? { key: fullApiKey } : {}), // Include full key only when newly created
             }
           : null,
         message:
