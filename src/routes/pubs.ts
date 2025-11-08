@@ -10,7 +10,6 @@ import { prisma } from "../server";
 
 const router = Router();
 
-// Get all pubs (public)
 router.get("/", async (req, res) => {
   const { city, tag, name } = req.query;
   let where: any = {};
@@ -34,7 +33,6 @@ router.get("/", async (req, res) => {
   res.json(pubs);
 });
 
-// Get single pub (public)
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   const pub = await prisma.pub.findUnique({ where: { id } });
@@ -42,7 +40,6 @@ router.get("/:id", async (req, res) => {
   res.json(pub);
 });
 
-// Create pub (authenticated)
 router.post(
   "/",
   authMiddleware,
@@ -54,7 +51,6 @@ router.post(
       return res.status(400).json({ errors: parsed.error.flatten() });
     }
 
-    // Check for duplicates
     const existing = await prisma.pub.findFirst({
       where: {
         name: { equals: parsed.data.name, mode: "insensitive" },
@@ -73,7 +69,6 @@ router.post(
 
     const pub = await prisma.pub.create({ data: parsed.data });
 
-    // Audit log
     const clientInfo = getClientInfo(req);
     await createAuditLog({
       action: "CREATE",
@@ -88,7 +83,6 @@ router.post(
   }
 );
 
-// Update pub (authenticated)
 router.patch(
   "/:id",
   authMiddleware,
@@ -113,7 +107,6 @@ router.patch(
         data: parsed.data,
       });
 
-      // Audit log
       const { oldValues, newValues } = getChangedFields(
         originalPub,
         updatedPub
@@ -137,7 +130,6 @@ router.patch(
   }
 );
 
-// Delete pub (authenticated + authorized)
 router.delete(
   "/:id",
   authMiddleware,
@@ -165,7 +157,6 @@ router.delete(
 
       await prisma.pub.delete({ where: { id } });
 
-      // Audit log
       const clientInfo = getClientInfo(req);
       await createAuditLog({
         action: "DELETE",

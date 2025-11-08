@@ -9,7 +9,6 @@ import {
 
 const router = Router();
 
-// Get all pubs (public endpoint)
 router.get(
   "/pubs",
   validateApiKey,
@@ -128,7 +127,6 @@ router.get(
   }
 );
 
-// Search pubs by location (latitude/longitude proximity)
 router.get(
   "/pubs/near",
   validateApiKey,
@@ -158,9 +156,7 @@ router.get(
         });
       }
 
-      // Find pubs with lat/lng within approximate radius
-      // This is a simple bounding box calculation - for production you might want PostGIS
-      const latDelta = radiusKm / 111; // Rough conversion: 1 degree ≈ 111km
+      const latDelta = radiusKm / 111;
       const lngDelta = radiusKm / (111 * Math.cos((latitude * Math.PI) / 180));
 
       const pubs = await prisma.pub.findMany({
@@ -178,7 +174,6 @@ router.get(
         orderBy: { name: "asc" },
       });
 
-      // Calculate actual distance and sort by distance
       const pubsWithDistance = pubs
         .map((pub) => {
           if (!pub.lat || !pub.lng) return null;
@@ -191,7 +186,7 @@ router.get(
           );
           return {
             ...pub,
-            distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
+            distance: Math.round(distance * 100) / 100,
           };
         })
         .filter(
@@ -220,7 +215,6 @@ router.get(
   }
 );
 
-// Get single pub by ID (public endpoint)
 router.get(
   "/pubs/:id",
   validateApiKey,
@@ -253,7 +247,6 @@ router.get(
   }
 );
 
-// Get pub statistics (public endpoint)
 router.get(
   "/stats",
   validateApiKey,
@@ -288,7 +281,6 @@ router.get(
           }),
         ]);
 
-      // Calculate unique tags
       const allTags = tagsCount.flatMap((pub) => pub.tags);
       const uniqueTags = [...new Set(allTags)];
 
@@ -343,7 +335,6 @@ router.get(
   }
 );
 
-// Get unique values for filtering
 router.get(
   "/filters",
   validateApiKey,
@@ -384,7 +375,6 @@ router.get(
         }),
       ]);
 
-      // Get unique tags
       const tags = [...new Set(allTags.flatMap((pub) => pub.tags))].sort();
 
       res.json({
@@ -408,7 +398,6 @@ router.get(
   }
 );
 
-// API information endpoint
 router.get("/info", async (req: ApiKeyRequest, res: Response) => {
   res.json({
     success: true,
@@ -455,7 +444,7 @@ const calculateDistance = (
   lat2: number,
   lng2: number
 ): number => {
-  const R = 6371; // Earth's radius in kilometers
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =

@@ -576,11 +576,9 @@ router.post(
           },
         });
 
-        // Store the full key to return it once
         fullApiKey = fullKey;
       }
 
-      // Extract billing day from billing_cycle_anchor for display
       const billingDay = (subscription as any).billing_cycle_anchor
         ? new Date((subscription as any).billing_cycle_anchor * 1000).getDate()
         : null;
@@ -609,45 +607,6 @@ router.post(
       });
     } catch (err) {
       console.error("Error verifying session:", err);
-      res.status(500).json({ error: "Something went wrong" });
-    }
-  }
-);
-
-router.get(
-  "/subscription-status",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
-
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.userId },
-        select: {
-          subscriptionTier: true,
-          subscriptionStatus: true,
-          stripeCustomerId: true,
-          stripeSubscriptionId: true,
-          subscriptionStartDate: true,
-          subscriptionEndDate: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({
-        subscription: {
-          tier: user.subscriptionTier,
-          status: user.subscriptionStatus,
-          startDate: user.subscriptionStartDate,
-          endDate: user.subscriptionEndDate,
-          hasStripeSubscription: !!user.stripeSubscriptionId,
-        },
-      });
-    } catch (err) {
-      console.error("Error getting subscription status:", err);
       res.status(500).json({ error: "Something went wrong" });
     }
   }

@@ -5,7 +5,6 @@ import { prisma } from "../server";
 
 const router = Router();
 
-// Get audit logs (admin only)
 router.get(
   "/",
   authMiddleware,
@@ -82,7 +81,6 @@ router.get(
   }
 );
 
-// Get audit log by ID (admin only)
 router.get(
   "/:id",
   authMiddleware,
@@ -121,7 +119,6 @@ router.get(
   }
 );
 
-// Get audit logs for a specific entity (admin only)
 router.get(
   "/entity/:entityType/:entityId",
   authMiddleware,

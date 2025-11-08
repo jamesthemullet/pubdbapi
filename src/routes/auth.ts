@@ -19,7 +19,6 @@ import { prisma } from "../server";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-// Register
 router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -28,13 +27,11 @@ router.post("/register", async (req, res) => {
 
   const { name, username, email, password } = parsed.data;
 
-  // Check if email already exists
   const existingEmail = await prisma.user.findUnique({ where: { email } });
   if (existingEmail) {
     return res.status(409).json({ error: "Email already registered" });
   }
 
-  // Check if username already exists
   const existingUsername = await prisma.user.findUnique({
     where: { username },
   });
@@ -71,7 +68,6 @@ router.post("/register", async (req, res) => {
   res.status(201).json({ message: "User registered" });
 });
 
-// Login
 router.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -113,12 +109,10 @@ router.post("/login", async (req, res) => {
   res.json({ token });
 });
 
-// Logout
 router.post("/logout", authMiddleware, async (req, res) => {
   res.json({ message: "Logged out" });
 });
 
-// Forgot password
 router.post("/forgot-password", async (req, res) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -146,7 +140,6 @@ router.post("/forgot-password", async (req, res) => {
   res.json({ message: "If the email exists, a reset link has been sent" });
 });
 
-// Reset password
 router.post("/reset-password", async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -181,7 +174,6 @@ router.post("/reset-password", async (req, res) => {
   res.json({ message: "Password has been reset successfully" });
 });
 
-// Verify email
 router.get("/verify", async (req, res) => {
   const { token } = req.query;
 
@@ -212,7 +204,6 @@ router.get("/verify", async (req, res) => {
   res.send("✅ Your email has been verified. You can now log in.");
 });
 
-// Get current user
 router.get(
   "/me",
   authMiddleware,
@@ -236,7 +227,6 @@ router.get(
   }
 );
 
-// Get user dashboard with API key info and rate limits
 router.get(
   "/dashboard",
   authMiddleware,

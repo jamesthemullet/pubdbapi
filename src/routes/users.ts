@@ -10,7 +10,6 @@ import { prisma } from "../server";
 
 const router = Router();
 
-// Get all users (admin only)
 router.get(
   "/",
   authMiddleware,
@@ -41,7 +40,6 @@ router.get(
   }
 );
 
-// Get user by ID (admin only or own user)
 router.get(
   "/:id",
   authMiddleware,
@@ -50,7 +48,6 @@ router.get(
 
     const { id } = req.params;
 
-    // Users can view their own profile, admins can view any profile
     if (req.user.userId !== id) {
       const currentUser = await prisma.user.findUnique({
         where: { id: req.user.userId },
@@ -82,7 +79,6 @@ router.get(
   }
 );
 
-// Update user (admin only or own user for limited fields)
 router.patch(
   "/:id",
   authMiddleware,
@@ -92,7 +88,6 @@ router.patch(
     const { id } = req.params;
     const { name, admin, approved } = req.body;
 
-    // Check if user is updating their own profile or is an admin
     const isOwnProfile = req.user.userId === id;
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.userId },
@@ -103,18 +98,14 @@ router.patch(
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Non-admins can only update their own profile and only certain fields
     if (!currentUser.admin && !isOwnProfile) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Prepare update data
     let updateData: any = {};
 
-    // Users can update their own name
     if (name !== undefined) updateData.name = name;
 
-    // Only admins can update admin and approved status
     if (currentUser.admin) {
       if (admin !== undefined) updateData.admin = admin;
       if (approved !== undefined) updateData.approved = approved;
@@ -163,7 +154,6 @@ router.patch(
   }
 );
 
-// Delete user (admin only, cannot delete self)
 router.delete(
   "/:id",
   authMiddleware,
@@ -172,7 +162,6 @@ router.delete(
 
     const { id } = req.params;
 
-    // Check if user is admin
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.userId },
       select: { admin: true },
@@ -182,7 +171,6 @@ router.delete(
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    // Prevent self-deletion
     if (req.user.userId === id) {
       return res.status(400).json({ error: "Cannot delete your own account" });
     }
@@ -195,7 +183,6 @@ router.delete(
 
       await prisma.user.delete({ where: { id } });
 
-      // Audit log
       const clientInfo = getClientInfo(req);
       await createAuditLog({
         action: "DELETE",
