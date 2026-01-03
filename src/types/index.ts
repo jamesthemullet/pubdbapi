@@ -46,4 +46,14 @@ export const pubSchema = z.object({
   website: z.string().url().optional(),
   description: z.string().optional(),
   imageUrl: z.string().url().optional(),
+  openingHours: z
+    .record(
+      z.string(),
+      z.object({
+        open: z.string().optional(),
+        close: z.string().optional(),
+        closed: z.boolean().optional(),
+      })
+    )
+    .optional(),
 });

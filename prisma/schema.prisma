@@ -25,7 +25,7 @@ model Pub {
   area         String?
   phone        String?
   borough      String?
-  openingHours String?
+  openingHours Json?
 }
 
 model User {

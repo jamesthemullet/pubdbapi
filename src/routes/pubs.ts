@@ -35,7 +35,9 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
+  console.log(62, id);
   const pub = await prisma.pub.findUnique({ where: { id } });
+  console.log(63, pub);
   if (!pub) return res.status(404).json({ message: "Pub not found" });
   res.json(pub);
 });
@@ -70,7 +72,9 @@ router.post(
       });
     }
 
-    const pub = await prisma.pub.create({ data: parsed.data });
+    const createData: any = { ...parsed.data };
+
+    const pub = await prisma.pub.create({ data: createData });
 
     const clientInfo = getClientInfo(req);
     await createAuditLog({
@@ -81,7 +85,6 @@ router.post(
       newValues: pub,
       ...clientInfo,
     });
-
     res.status(201).json(pub);
   }
 );
@@ -94,7 +97,9 @@ router.patch(
 
     const { id } = req.params;
     const partialPubSchema = pubSchema.partial();
+    console.log(51, req.body);
     const parsed = partialPubSchema.safeParse(req.body);
+    console.log(55, parsed.data);
     if (!parsed.success) {
       return res.status(400).json({ errors: parsed.error.flatten() });
     }
@@ -105,15 +110,14 @@ router.patch(
         return res.status(404).json({ error: "Pub not found" });
       }
 
+      const updateData: any = { ...parsed.data };
+
       const updatedPub = await prisma.pub.update({
         where: { id },
-        data: parsed.data,
+        data: updateData,
       });
 
-      const { oldValues, newValues } = getChangedFields(
-        originalPub,
-        updatedPub
-      );
+      const { oldValues, newValues } = getChangedFields(originalPub, updatedPub);
       const clientInfo = getClientInfo(req);
 
       await createAuditLog({
@@ -161,6 +165,7 @@ router.delete(
       await prisma.pub.delete({ where: { id } });
 
       const clientInfo = getClientInfo(req);
+
       await createAuditLog({
         action: "DELETE",
         entity: "Pub",
