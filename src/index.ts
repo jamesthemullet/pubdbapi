@@ -144,9 +144,10 @@ app.post(
     });
 
     if (existing) {
-      return res
-        .status(409)
-        .json({ error: "Pub with this name already exists at this location" });
+      return res.status(409).json({
+        error: "Pub with this name already exists at this location",
+        id: existing.id,
+      });
     }
 
     const pub = await prisma.pub.create({ data: parsed.data });

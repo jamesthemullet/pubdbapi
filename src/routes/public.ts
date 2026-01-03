@@ -29,7 +29,7 @@ router.get(
       } = req.query;
 
       const pageNum = parseInt(page as string);
-      const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 results per request
+      const limitNum = Math.min(parseInt(limit as string), 100);
       const skip = (pageNum - 1) * limitNum;
 
       let where: any = {};
@@ -87,8 +87,6 @@ router.get(
       const [pubs, total] = await Promise.all([
         prisma.pub.findMany({
           where,
-          skip,
-          take: limitNum,
           orderBy: { name: "asc" },
         }),
         prisma.pub.count({ where }),
