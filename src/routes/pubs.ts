@@ -110,14 +110,24 @@ router.patch(
         return res.status(404).json({ error: "Pub not found" });
       }
 
+      const systemFields = ["id", "createdAt", "updatedAt"];
       const updateData: any = { ...parsed.data };
+      Object.keys(originalPub).forEach((key) => {
+        if (!systemFields.includes(key) && !(key in parsed.data)) {
+          updateData[key] = null;
+        }
+      });
+      updateData.id = id;
 
       const updatedPub = await prisma.pub.update({
         where: { id },
         data: updateData,
       });
 
-      const { oldValues, newValues } = getChangedFields(originalPub, updatedPub);
+      const { oldValues, newValues } = getChangedFields(
+        originalPub,
+        updatedPub
+      );
       const clientInfo = getClientInfo(req);
 
       await createAuditLog({
