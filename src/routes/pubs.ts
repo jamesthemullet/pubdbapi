@@ -111,7 +111,7 @@ router.patch(
       }
 
       const systemFields = ["id", "createdAt", "updatedAt"];
-      const updateData: any = { ...parsed.data };
+      const updateData: Record<string, unknown> = { ...parsed.data };
       Object.keys(originalPub).forEach((key) => {
         if (!systemFields.includes(key) && !(key in parsed.data)) {
           updateData[key] = null;
