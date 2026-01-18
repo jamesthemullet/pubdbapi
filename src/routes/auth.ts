@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { ApiKeyTier } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -18,6 +19,12 @@ import { prisma } from "../server";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const DEFAULT_TIER: ApiKeyTier = "HOBBY";
+const PERMISSIONS_BY_TIER: Record<ApiKeyTier, string[]> = {
+  HOBBY: ["read:pubs"],
+  DEVELOPER: ["read:pubs", "location:search"],
+  BUSINESS: ["read:pubs", "write:pubs", "read:stats", "location:search"],
+};
 
 router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
@@ -138,6 +145,109 @@ router.post("/forgot-password", async (req, res) => {
 
   await sendResetEmail(email, resetToken);
   res.json({ message: "If the email exists, a reset link has been sent" });
+});
+
+router.post("/forgot-api-key", async (req, res) => {
+  const parsed = resetRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+
+  const { email } = parsed.data;
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, subscriptionTier: true },
+  });
+
+  if (!user) {
+    return res.status(404).json({ error: "No account found for that email" });
+  }
+
+  const existingKeys = await prisma.apiKey.findMany({
+    where: { userId: user.id, isActive: true },
+    select: {
+      id: true,
+      usageCount: true,
+      currentMonthUsage: true,
+      monthlyResetDate: true,
+    },
+  });
+
+  const keyIds = existingKeys.map((key) => key.id);
+  const aggregatedUsageCount = existingKeys.reduce(
+    (sum, key) => sum + (key.usageCount || 0),
+    0
+  );
+  const aggregatedCurrentMonthUsage = existingKeys.reduce(
+    (sum, key) => sum + (key.currentMonthUsage || 0),
+    0
+  );
+
+  const now = new Date();
+  const defaultMonthlyReset = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1
+  );
+  const monthlyResetDateCandidate = existingKeys.find(
+    (key) => key.monthlyResetDate && key.monthlyResetDate > now
+  )?.monthlyResetDate;
+  const monthlyResetDate = monthlyResetDateCandidate || defaultMonthlyReset;
+
+  const tier = (user.subscriptionTier || DEFAULT_TIER) as ApiKeyTier;
+  const tierLimits = TIER_LIMITS[tier] || TIER_LIMITS[DEFAULT_TIER];
+  const permissions =
+    PERMISSIONS_BY_TIER[tier] || PERMISSIONS_BY_TIER[DEFAULT_TIER];
+
+  const fullKey = `pk_${tier.toLowerCase()}_${crypto
+    .randomBytes(24)
+    .toString("hex")}`;
+  const keyPrefix = `${fullKey.substring(0, 12)}...`;
+  const keyHash = crypto.createHash("sha256").update(fullKey).digest("hex");
+  const apiKey = await prisma.$transaction(async (tx) => {
+    const createdKey = await tx.apiKey.create({
+      data: {
+        name: `${tier} API Key`,
+        keyHash,
+        keyPrefix,
+        userId: user.id,
+        tier,
+        keyStatus: "ACTIVE",
+        requestsPerHour: tierLimits.requestsPerHour,
+        requestsPerDay: tierLimits.requestsPerDay,
+        requestsPerMonth: tierLimits.requestsPerMonth,
+        permissions,
+        monthlyResetDate,
+        usageCount: aggregatedUsageCount,
+        currentMonthUsage: aggregatedCurrentMonthUsage,
+      },
+    });
+
+    if (keyIds.length) {
+      await tx.apiKeyUsage.updateMany({
+        where: { apiKeyId: { in: keyIds } },
+        data: { apiKeyId: createdKey.id },
+      });
+
+      await tx.apiKey.deleteMany({
+        where: { id: { in: keyIds } },
+      });
+    }
+
+    return createdKey;
+  });
+
+  res.json({
+    message: "A new API key has been generated.",
+    apiKey: {
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      tier: apiKey.tier,
+      keyStatus: apiKey.keyStatus,
+      permissions: apiKey.permissions,
+      key: fullKey,
+    },
+  });
 });
 
 router.post("/reset-password", async (req, res) => {
