@@ -83,7 +83,6 @@ const pubSchema = z.object({
   postcode: z.string(),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  tags: z.array(z.string()),
   website: z.string().url().optional(),
   description: z.string().optional(),
   imageUrl: z.string().url().optional(),
@@ -93,15 +92,11 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/pubs", async (req, res) => {
-  const { city, tag, name } = req.query;
+  const { city, name } = req.query;
   let where: any = {};
 
   if (city) {
     where.city = { equals: String(city), mode: "insensitive" };
-  }
-
-  if (tag) {
-    where.tags = { has: String(tag) };
   }
 
   if (name) {

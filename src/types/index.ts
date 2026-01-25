@@ -47,7 +47,6 @@ export const pubSchema = z.object({
   borough: z.string().optional(),
   operator: z.string().optional(),
   phone: z.string().optional(),
-  tags: z.array(z.string()),
   website: z.string().url().optional(),
   description: z.string().optional(),
   imageUrl: z.string().url().optional(),

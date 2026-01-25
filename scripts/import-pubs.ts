@@ -30,14 +30,6 @@ async function run() {
     const lng = coords[0];
     const website = props.website || null;
 
-    const tags = [];
-
-    if (props.outdoor_seating === "yes") tags.push("beer_garden");
-    if (props["diet:vegan"] === "yes") tags.push("vegan");
-    if (props["diet:vegetarian"] === "yes") tags.push("vegetarian");
-    if (props["food"] === "yes") tags.push("food");
-    if (props["real_ale"]) tags.push("real_ale");
-
     if (!name || !lat || !lng) continue;
 
     try {
@@ -52,7 +44,6 @@ async function run() {
           website,
           description: null,
           imageUrl: null,
-          tags,
           operator,
           area: null,
           phone: props.phone || null,

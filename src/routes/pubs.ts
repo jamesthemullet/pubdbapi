@@ -11,15 +11,11 @@ import { prisma } from "../server";
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const { city, tag, name } = req.query;
+  const { city, name } = req.query;
   let where: any = {};
 
   if (city) {
     where.city = { equals: String(city), mode: "insensitive" };
-  }
-
-  if (tag) {
-    where.tags = { has: String(tag) };
   }
 
   if (name) {

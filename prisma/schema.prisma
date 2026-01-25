@@ -19,7 +19,6 @@ model Pub {
   website      String?
   description  String?
   imageUrl     String?
-  tags         String[]
   createdAt    DateTime @default(now())
   operator     String?
   area         String?

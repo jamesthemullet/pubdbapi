@@ -17,7 +17,6 @@ router.get(
     try {
       const {
         city,
-        tag,
         name,
         page = "1",
         limit = "50",
@@ -36,10 +35,6 @@ router.get(
 
       if (city) {
         where.city = { contains: String(city), mode: "insensitive" };
-      }
-
-      if (tag) {
-        where.tags = { has: String(tag) };
       }
 
       if (name) {
@@ -105,7 +100,6 @@ router.get(
         },
         filters: {
           city: city || null,
-          tag: tag || null,
           name: name || null,
           operator: operator || null,
           borough: borough || null,
@@ -251,7 +245,7 @@ router.get(
   requireTierAccess("allowStats"),
   async (req: ApiKeyRequest, res: Response) => {
     try {
-      const [totalPubs, citiesCount, operatorsCount, boroughsCount, tagsCount] =
+      const [totalPubs, citiesCount, operatorsCount, boroughsCount] =
         await Promise.all([
           prisma.pub.count(),
           prisma.pub.groupBy({
@@ -269,18 +263,7 @@ router.get(
             where: { borough: { not: null } },
             _count: { borough: true },
           }),
-          prisma.pub.findMany({
-            select: { tags: true },
-            where: {
-              tags: {
-                isEmpty: false,
-              },
-            },
-          }),
         ]);
-
-      const allTags = tagsCount.flatMap((pub) => pub.tags);
-      const uniqueTags = [...new Set(allTags)];
 
       res.json({
         success: true,
@@ -290,7 +273,6 @@ router.get(
             totalCities: citiesCount.length,
             totalOperators: operatorsCount.length,
             totalBoroughs: boroughsCount.length,
-            totalTags: uniqueTags.length,
           },
           topCities: citiesCount
             .sort((a, b) => (b._count?.city || 0) - (a._count?.city || 0))
@@ -313,13 +295,6 @@ router.get(
               name: borough.borough,
               count: borough._count.borough,
             })),
-          popularTags: uniqueTags
-            .map((tag) => ({
-              name: tag,
-              count: allTags.filter((t) => t === tag).length,
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 20),
         },
       });
     } catch (error) {
@@ -338,7 +313,7 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
-      const [cities, operators, boroughs, areas, allTags] = await Promise.all([
+      const [cities, operators, boroughs, areas] = await Promise.all([
         prisma.pub.findMany({
           select: { city: true },
           where: { city: { not: "" } },
@@ -363,17 +338,7 @@ router.get(
           distinct: ["area"],
           orderBy: { area: "asc" },
         }),
-        prisma.pub.findMany({
-          select: { tags: true },
-          where: {
-            tags: {
-              isEmpty: false,
-            },
-          },
-        }),
       ]);
-
-      const tags = [...new Set(allTags.flatMap((pub) => pub.tags))].sort();
 
       res.json({
         success: true,
@@ -382,7 +347,6 @@ router.get(
           operators: operators.map((o) => o.operator).filter(Boolean),
           boroughs: boroughs.map((b) => b.borough).filter(Boolean),
           areas: areas.map((a) => a.area).filter(Boolean),
-          tags: tags,
         },
       });
     } catch (error) {
