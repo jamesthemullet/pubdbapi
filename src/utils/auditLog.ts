@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 type AuditAction = "CREATE" | "UPDATE" | "DELETE";
-type AuditEntity = "Pub" | "User";
+type AuditEntity = "Pub" | "User" | "BeerGarden";
 
 interface AuditLogData {
   action: AuditAction;

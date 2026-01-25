@@ -214,7 +214,10 @@ router.get(
     try {
       const { id } = req.params;
 
-      const pub = await prisma.pub.findUnique({ where: { id } });
+      const pub = await prisma.pub.findUnique({
+        where: { id },
+        include: { beerGardens: true },
+      });
 
       if (!pub) {
         return res.status(404).json({

@@ -61,3 +61,24 @@ export const pubSchema = z.object({
     )
     .optional(),
 });
+
+export const beerGardenSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  seatingCapacity: z.number().int().positive().optional(),
+  sunExposure: z.enum(["FULL_SUN", "PARTIAL_SUN", "SHADED"]).optional(),
+  isCovered: z.boolean().optional(),
+  isHeated: z.boolean().optional(),
+  isFamilyFriendly: z.boolean().optional(),
+  petFriendly: z.boolean().optional(),
+  openingHours: z.record(z.string(), z.any()).optional(),
+  imageUrl: z.string().url().optional(),
+  notes: z.string().optional(),
+});
+
+export const beerGardenPatchSchema = beerGardenSchema.partial().extend({
+  id: z.string().optional(),
+  _delete: z.boolean().optional(),
+});
+
+export const beerGardensPatchSchema = z.array(beerGardenPatchSchema).optional();
