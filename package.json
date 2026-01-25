@@ -6,6 +6,7 @@
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/server.ts\"",
     "build": "tsc && prisma generate",
     "start": "node dist/server.js",
+    "ts-check": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint:errors": "biome check . | findstr error"

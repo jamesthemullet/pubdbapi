@@ -25,6 +25,29 @@ model Pub {
   phone        String?
   borough      String?
   openingHours Json?
+  beerGardens  BeerGarden[]
+}
+
+model BeerGarden {
+  id               String   @id @default(cuid())
+  pubId            String
+  name             String
+  description      String?
+  seatingCapacity  Int?
+  sunExposure      SunExposure?
+  isCovered        Boolean  @default(false)
+  isHeated         Boolean  @default(false)
+  isFamilyFriendly Boolean  @default(false)
+  petFriendly      Boolean  @default(false)
+  openingHours     Json?
+  imageUrl         String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  pub Pub @relation(fields: [pubId], references: [id])
+
+  @@index([pubId])
 }
 
 model User {
@@ -174,6 +197,7 @@ enum SubscriptionStatus {
   INACTIVE     // No active subscription
   ACTIVE       // Active subscription
   PAST_DUE     // Payment failed, grace period
+  CANCELED     // Legacy spelling retained for DB compatibility
   CANCELLED    // User cancelled subscription
   INCOMPLETE   // Subscription created but payment not completed
   TRIALING     // In trial period
@@ -184,4 +208,10 @@ enum KeyStatus {
   SCHEDULED_EXPIRE
   EXPIRED
   REVOKED
+}
+
+enum SunExposure {
+  FULL_SUN
+  PARTIAL_SUN
+  SHADED
 }
