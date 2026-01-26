@@ -6,6 +6,8 @@
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/server.ts\"",
     "build": "tsc && prisma generate",
     "start": "node dist/server.js",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
     "ts-check": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -29,15 +31,18 @@
     "zod": "^4.0.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.11",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.13",
+    "@types/supertest": "^6.0.3",
     "nodemon": "3.1.10",
+    "supertest": "^7.2.2",
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
     "typescript": "5.8.3",
-    "@biomejs/biome": "2.3.11"
+    "vitest": "^4.0.18"
   }
 }

@@ -37,12 +37,10 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(62, id);
   const pub = await prisma.pub.findUnique({
     where: { id },
     include: { beerGardens: true },
   });
-  console.log(63, pub);
   if (!pub) return res.status(404).json({ message: "Pub not found" });
   res.json(pub);
 });
