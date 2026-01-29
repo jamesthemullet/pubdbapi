@@ -82,3 +82,15 @@ export const beerGardenPatchSchema = beerGardenSchema.partial().extend({
 });
 
 export const beerGardensPatchSchema = z.array(beerGardenPatchSchema).optional();
+
+export const pubBeerTypeSchema = z.object({
+  beerTypeId: z.string().min(1),
+});
+
+export const pubBeerTypePatchSchema = pubBeerTypeSchema.extend({
+  _delete: z.boolean().optional(),
+});
+
+export const pubBeerTypesPatchSchema = z
+  .array(pubBeerTypePatchSchema)
+  .optional();

@@ -26,6 +26,35 @@ model Pub {
   borough      String?
   openingHours Json?
   beerGardens  BeerGarden[]
+  beerTypes    PubBeerType[]
+}
+
+model BeerType {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  colour      BeerColour?
+  isSystem    Boolean    @default(false)
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  pubs        PubBeerType[]
+
+  @@index([isActive])
+  @@index([colour])
+}
+
+model PubBeerType {
+  pubId      String
+  beerTypeId String
+  createdAt  DateTime @default(now())
+
+  pub      Pub      @relation(fields: [pubId], references: [id])
+  beerType BeerType @relation(fields: [beerTypeId], references: [id])
+
+  @@id([pubId, beerTypeId])
+  @@index([beerTypeId])
 }
 
 model BeerGarden {
@@ -214,4 +243,13 @@ enum SunExposure {
   FULL_SUN
   PARTIAL_SUN
   SHADED
+}
+
+enum BeerColour {
+  PALE
+  GOLDEN
+  AMBER
+  BROWN
+  DARK
+  BLACK
 }

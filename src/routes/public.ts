@@ -216,7 +216,10 @@ router.get(
 
       const pub = await prisma.pub.findUnique({
         where: { id },
-        include: { beerGardens: true },
+        include: {
+          beerGardens: true,
+          beerTypes: { include: { beerType: true } },
+        },
       });
 
       if (!pub) {
@@ -363,6 +366,31 @@ router.get(
   }
 );
 
+router.get(
+  "/beer-types",
+  validateApiKey,
+  async (req: ApiKeyRequest, res: Response) => {
+    try {
+      const beerTypes = await prisma.beerType.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+      });
+
+      res.json({
+        success: true,
+        data: beerTypes,
+      });
+    } catch (error) {
+      console.error("Public API error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to fetch beer types",
+      });
+    }
+  }
+);
+
 router.get("/info", async (req: ApiKeyRequest, res: Response) => {
   res.json({
     success: true,
@@ -378,6 +406,7 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       "GET /api/v1/pubs/:id": "Get a specific pub by ID",
       "GET /api/v1/pubs/near": "Find pubs near a location (lat/lng)",
       "GET /api/v1/stats": "Get database statistics and top lists",
+      "GET /api/v1/beer-types": "Get available beer types",
       "GET /api/v1/filters":
         "Get available filter values for cities, operators, etc.",
       "GET /api/v1/info": "Get API information",
