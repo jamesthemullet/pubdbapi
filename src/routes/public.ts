@@ -30,7 +30,6 @@ router.get(
 
       const pageNum = parseInt(page as string);
       const limitNum = Math.min(parseInt(limit as string), 100);
-      const skip = (pageNum - 1) * limitNum;
 
       let where: any = {};
 
