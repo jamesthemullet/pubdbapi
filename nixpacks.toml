@@ -1,5 +1,7 @@
+providers = ["node"]
+
 [variables]
 NIXPACKS_NODE_VERSION = "22.12.0"
 
-[providers.node]
+[provider.node]
 version = "22.12.0"
