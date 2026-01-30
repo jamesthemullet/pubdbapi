@@ -9,6 +9,7 @@ import {
 
 const router = Router();
 
+// Used on pubs-fe
 router.get(
   "/pubs",
   validateApiKey,
