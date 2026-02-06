@@ -19,6 +19,19 @@ model Pub {
   website      String?
   description  String?
   imageUrl     String?
+  chainName    String?
+  isIndependent Boolean?
+  hasFood      Boolean?
+  hasSundayRoast Boolean?
+  hasBeerGarden Boolean?
+  hasCaskAle   Boolean?
+  isBeerFocused Boolean?
+  isDogFriendly Boolean?
+  isFamilyFriendly Boolean?
+  hasStepFreeAccess Boolean?
+  hasAccessibleToilet Boolean?
+  hasLiveSport Boolean?
+  hasLiveMusic Boolean?
   createdAt    DateTime @default(now())
   operator     String?
   area         String?
