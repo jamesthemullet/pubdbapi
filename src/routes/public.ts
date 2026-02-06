@@ -10,114 +10,114 @@ import {
 const router = Router();
 
 // Used on pubs-fe
-router.get(
-  "/pubs",
-  validateApiKey,
-  enforceTierLimits,
-  async (req: ApiKeyRequest, res: Response) => {
-    try {
-      const {
-        city,
-        name,
-        page = "1",
-        limit = "50",
-        operator,
-        borough,
-        postcode,
-        area,
-        country,
-      } = req.query;
+// router.get(
+//   "/pubs",
+//   validateApiKey,
+//   enforceTierLimits,
+//   async (req: ApiKeyRequest, res: Response) => {
+//     try {
+//       const {
+//         city,
+//         name,
+//         page = "1",
+//         limit = "50",
+//         operator,
+//         borough,
+//         postcode,
+//         area,
+//         country,
+//       } = req.query;
 
-      const pageNum = parseInt(page as string);
-      const limitNum = Math.min(parseInt(limit as string), 100);
+//       const pageNum = parseInt(page as string);
+//       const limitNum = Math.min(parseInt(limit as string), 100);
 
-      let where: any = {};
+//       let where: any = {};
 
-      if (city) {
-        where.city = { contains: String(city), mode: "insensitive" };
-      }
+//       if (city) {
+//         where.city = { contains: String(city), mode: "insensitive" };
+//       }
 
-      if (name) {
-        where.name = {
-          contains: String(name),
-          mode: "insensitive",
-        };
-      }
+//       if (name) {
+//         where.name = {
+//           contains: String(name),
+//           mode: "insensitive",
+//         };
+//       }
 
-      if (operator) {
-        where.operator = {
-          contains: String(operator),
-          mode: "insensitive",
-        };
-      }
+//       if (operator) {
+//         where.operator = {
+//           contains: String(operator),
+//           mode: "insensitive",
+//         };
+//       }
 
-      if (borough) {
-        where.borough = {
-          contains: String(borough),
-          mode: "insensitive",
-        };
-      }
+//       if (borough) {
+//         where.borough = {
+//           contains: String(borough),
+//           mode: "insensitive",
+//         };
+//       }
 
-      if (postcode) {
-        where.postcode = {
-          contains: String(postcode),
-          mode: "insensitive",
-        };
-      }
+//       if (postcode) {
+//         where.postcode = {
+//           contains: String(postcode),
+//           mode: "insensitive",
+//         };
+//       }
 
-      if (area) {
-        where.area = {
-          contains: String(area),
-          mode: "insensitive",
-        };
-      }
+//       if (area) {
+//         where.area = {
+//           contains: String(area),
+//           mode: "insensitive",
+//         };
+//       }
 
-      if (country) {
-        where.country = {
-          contains: String(country),
-          mode: "insensitive",
-        };
-      }
+//       if (country) {
+//         where.country = {
+//           contains: String(country),
+//           mode: "insensitive",
+//         };
+//       }
 
-      const [pubs, total] = await Promise.all([
-        prisma.pub.findMany({
-          where,
-          orderBy: { name: "asc" },
-        }),
-        prisma.pub.count({ where }),
-      ]);
+//       const [pubs, total] = await Promise.all([
+//         prisma.pub.findMany({
+//           where,
+//           orderBy: { name: "asc" },
+//         }),
+//         prisma.pub.count({ where }),
+//       ]);
 
-      res.json({
-        success: true,
-        data: pubs,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum),
-          hasNext: pageNum < Math.ceil(total / limitNum),
-          hasPrev: pageNum > 1,
-        },
-        filters: {
-          city: city || null,
-          name: name || null,
-          operator: operator || null,
-          borough: borough || null,
-          postcode: postcode || null,
-          area: area || null,
-          country: country || null,
-        },
-      });
-    } catch (error) {
-      console.error("Public API error:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        message: "Failed to fetch pubs",
-      });
-    }
-  }
-);
+//       res.json({
+//         success: true,
+//         data: pubs,
+//         pagination: {
+//           page: pageNum,
+//           limit: limitNum,
+//           total,
+//           pages: Math.ceil(total / limitNum),
+//           hasNext: pageNum < Math.ceil(total / limitNum),
+//           hasPrev: pageNum > 1,
+//         },
+//         filters: {
+//           city: city || null,
+//           name: name || null,
+//           operator: operator || null,
+//           borough: borough || null,
+//           postcode: postcode || null,
+//           area: area || null,
+//           country: country || null,
+//         },
+//       });
+//     } catch (error) {
+//       console.error("Public API error:", error);
+//       res.status(500).json({
+//         success: false,
+//         error: "Internal server error",
+//         message: "Failed to fetch pubs",
+//       });
+//     }
+//   }
+// );
 
 router.get(
   "/pubs/near",

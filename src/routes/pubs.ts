@@ -19,8 +19,21 @@ import { prisma } from "../server";
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const { city, name } = req.query;
+  const {
+    city,
+    name,
+    operator,
+    borough,
+    postcode,
+    area,
+    country,
+    page = "1",
+    limit = "50",
+  } = req.query;
   let where: any = {};
+
+  const pageNum = parseInt(page as string);
+  const limitNum = Math.min(parseInt(limit as string), 100);
 
   if (city) {
     where.city = { equals: String(city), mode: "insensitive" };
@@ -33,8 +46,70 @@ router.get("/", async (req, res) => {
     };
   }
 
-  const pubs = await prisma.pub.findMany({ where });
-  res.json(pubs);
+  if (operator) {
+    where.operator = {
+      contains: String(operator),
+      mode: "insensitive",
+    };
+  }
+
+  if (borough) {
+    where.borough = {
+      contains: String(borough),
+      mode: "insensitive",
+    };
+  }
+
+  if (postcode) {
+    where.postcode = {
+      equals: String(postcode),
+      mode: "insensitive",
+    };
+  }
+
+  if (area) {
+    where.area = {
+      equals: String(area),
+      mode: "insensitive",
+    };
+  }
+
+  if (country) {
+    where.country = {
+      equals: String(country),
+      mode: "insensitive",
+    };
+  }
+
+  const [pubs, total] = await Promise.all([
+    prisma.pub.findMany({
+      where,
+      orderBy: { name: "asc" },
+    }),
+    prisma.pub.count({ where }),
+  ]);
+
+  res.json({
+    success: true,
+    data: pubs,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      pages: Math.ceil(total / limitNum),
+      hasNext: pageNum < Math.ceil(total / limitNum),
+      hasPrev: pageNum > 1,
+    },
+    filters: {
+      city: city || null,
+      name: name || null,
+      operator: operator || null,
+      borough: borough || null,
+      postcode: postcode || null,
+      area: area || null,
+      country: country || null,
+    },
+  });
 });
 
 router.get("/:id", async (req, res) => {
