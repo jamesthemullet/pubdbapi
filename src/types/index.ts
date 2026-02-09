@@ -2,6 +2,22 @@ import { Request } from "express";
 import { z } from "zod";
 import { ISO_COUNTRY_CODES } from "../utils/countryCodes";
 
+const CHAIN_NAME_ALIASES: Record<string, string> = {
+  "jd wetherspoon": "Wetherspoons",
+  wetherspoon: "Wetherspoons",
+  wetherspoons: "Wetherspoons",
+  youngs: "Young's",
+  "young's": "Young's",
+};
+
+const normalizeChainName = (value?: string) => {
+  if (!value) return value;
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (!trimmed) return undefined;
+  const key = trimmed.toLowerCase();
+  return CHAIN_NAME_ALIASES[key] ?? trimmed;
+};
+
 // Extend Request interface for authenticated requests
 export interface AuthenticatedRequest extends Request {
   user?: { userId: string; email: string };
@@ -58,7 +74,12 @@ export const pubSchema = z.object({
   website: z.string().url().max(2048).optional(),
   description: z.string().max(2000).optional(),
   imageUrl: z.string().url().max(2048).optional(),
-  chainName: z.string().max(150).optional(),
+  chainName: z
+    .string()
+    .min(1)
+    .max(150)
+    .optional()
+    .transform((value) => normalizeChainName(value)),
   isIndependent: z.boolean().optional(),
   hasFood: z.boolean().optional(),
   hasSundayRoast: z.boolean().optional(),
