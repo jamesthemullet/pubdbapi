@@ -9,7 +9,7 @@ export interface AuthenticatedRequest extends Request {
 
 // Common schemas
 export const registerSchema = z.object({
-  name: z.string().min(2),
+  name: z.string().min(2).max(100),
   username: z
     .string()
     .min(3)
@@ -18,29 +18,29 @@ export const registerSchema = z.object({
       /^[a-zA-Z0-9_]+$/,
       "Username can only contain letters, numbers, and underscores"
     ),
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().max(320),
+  password: z.string().min(6).max(128),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().max(320),
+  password: z.string().min(6).max(128),
 });
 
 export const resetRequestSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().max(320),
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string(),
-  password: z.string().min(6),
+  token: z.string().max(255),
+  password: z.string().min(6).max(128),
 });
 
 export const pubSchema = z.object({
-  name: z.string().min(2),
-  city: z.string(),
-  address: z.string(),
-  postcode: z.string(),
+  name: z.string().min(2).max(150),
+  city: z.string().max(100),
+  address: z.string().max(255),
+  postcode: z.string().max(20),
   country: z
     .string()
     .trim()
@@ -51,14 +51,14 @@ export const pubSchema = z.object({
     }),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  area: z.string().optional(),
-  borough: z.string().optional(),
-  operator: z.string().optional(),
-  phone: z.string().optional(),
-  website: z.string().url().optional(),
-  description: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  chainName: z.string().optional(),
+  area: z.string().max(100).optional(),
+  borough: z.string().max(100).optional(),
+  operator: z.string().max(150).optional(),
+  phone: z.string().max(30).optional(),
+  website: z.string().url().max(2048).optional(),
+  description: z.string().max(2000).optional(),
+  imageUrl: z.string().url().max(2048).optional(),
+  chainName: z.string().max(150).optional(),
   isIndependent: z.boolean().optional(),
   hasFood: z.boolean().optional(),
   hasSundayRoast: z.boolean().optional(),
@@ -73,10 +73,10 @@ export const pubSchema = z.object({
   hasLiveMusic: z.boolean().optional(),
   openingHours: z
     .record(
-      z.string(),
+      z.string().max(20),
       z.object({
-        open: z.string().optional(),
-        close: z.string().optional(),
+        open: z.string().max(20).optional(),
+        close: z.string().max(20).optional(),
         closed: z.boolean().optional(),
       })
     )
@@ -84,28 +84,28 @@ export const pubSchema = z.object({
 });
 
 export const beerGardenSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
+  name: z.string().min(1).max(150),
+  description: z.string().max(2000).optional(),
   seatingCapacity: z.number().int().positive().optional(),
   sunExposure: z.enum(["FULL_SUN", "PARTIAL_SUN", "SHADED"]).optional(),
   isCovered: z.boolean().optional(),
   isHeated: z.boolean().optional(),
   isFamilyFriendly: z.boolean().optional(),
   petFriendly: z.boolean().optional(),
-  openingHours: z.record(z.string(), z.any()).optional(),
-  imageUrl: z.string().url().optional(),
-  notes: z.string().optional(),
+  openingHours: z.record(z.string().max(20), z.any()).optional(),
+  imageUrl: z.string().url().max(2048).optional(),
+  notes: z.string().max(1000).optional(),
 });
 
 export const beerGardenPatchSchema = beerGardenSchema.partial().extend({
-  id: z.string().optional(),
+  id: z.string().max(50).optional(),
   _delete: z.boolean().optional(),
 });
 
 export const beerGardensPatchSchema = z.array(beerGardenPatchSchema).optional();
 
 export const pubBeerTypeSchema = z.object({
-  beerTypeId: z.string().min(1),
+  beerTypeId: z.string().min(1).max(50),
 });
 
 export const pubBeerTypePatchSchema = pubBeerTypeSchema.extend({
