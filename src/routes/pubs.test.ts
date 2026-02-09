@@ -94,7 +94,7 @@ describe("GET /pubs", () => {
     mockedCount.mockResolvedValueOnce(1 as any);
 
     const response = await request(app).get(
-      "/pubs?operator=Greene&borough=Camden&postcode=NW1%206XE&area=London&country=UK"
+      "/pubs?operator=Greene&borough=Camden&postcode=NW1%206XE&area=London&country=GB"
     );
 
     expect(response.status).toBe(200);
@@ -105,7 +105,7 @@ describe("GET /pubs", () => {
         borough: { contains: "Camden", mode: "insensitive" },
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
-        country: { equals: "UK", mode: "insensitive" },
+        country: { equals: "GB", mode: "insensitive" },
       },
       orderBy: { name: "asc" },
     });
@@ -115,7 +115,7 @@ describe("GET /pubs", () => {
         borough: { contains: "Camden", mode: "insensitive" },
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
-        country: { equals: "UK", mode: "insensitive" },
+        country: { equals: "GB", mode: "insensitive" },
       },
     });
   });
@@ -183,7 +183,7 @@ describe("POST /pubs", () => {
       city: "London",
       address: "123 Test Street",
       postcode: "SW1A 1AA",
-      country: "UK",
+      country: "GB",
     };
 
     const createdPub = { id: "pub_123", ...pubData };
@@ -213,7 +213,7 @@ describe("POST /pubs", () => {
       city: "London",
       address: "456 Existing Street",
       postcode: "SW1A 2BB",
-      country: "UK",
+      country: "GB",
     };
 
     const existingPub = { id: "pub_existing", ...pubData };
@@ -245,7 +245,7 @@ describe("POST /pubs", () => {
       city: "London",
       address: "123 Test Street",
       postcode: "SW1A 1AA",
-      country: "UK",
+      country: "GB",
     };
 
     const response = await request(app).post("/pubs").send(invalidData);
@@ -268,7 +268,7 @@ describe("POST /pubs", () => {
       city: "London",
       address: "123 Test Street",
       postcode: "SW1A 1AA",
-      country: "UK",
+      country: "GB",
     };
 
     const response = await request(app).post("/pubs").send(pubData);

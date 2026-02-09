@@ -1,5 +1,6 @@
 import { Request } from "express";
 import { z } from "zod";
+import { ISO_COUNTRY_CODES } from "../utils/countryCodes";
 
 // Extend Request interface for authenticated requests
 export interface AuthenticatedRequest extends Request {
@@ -40,7 +41,14 @@ export const pubSchema = z.object({
   city: z.string(),
   address: z.string(),
   postcode: z.string(),
-  country: z.string().min(2),
+  country: z
+    .string()
+    .trim()
+    .length(2)
+    .transform((value) => value.toUpperCase())
+    .refine((value) => ISO_COUNTRY_CODES.has(value), {
+      message: "Invalid country code",
+    }),
   lat: z.number().optional(),
   lng: z.number().optional(),
   area: z.string().optional(),
