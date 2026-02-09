@@ -6,6 +6,7 @@ import {
   getClientInfo,
   getChangedFields,
 } from "../utils/auditLog";
+import { requireAuth } from "../utils/authCheck";
 import {
   AuthenticatedRequest,
   beerGardenSchema,
@@ -126,7 +127,7 @@ router.post(
   "/",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const parsed = pubSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -142,8 +143,6 @@ router.post(
         ],
       },
     });
-
-    console.log(80, existing);
 
     if (existing) {
       return res.status(409).json({
@@ -173,7 +172,7 @@ router.patch(
   "/:id",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { id } = req.params;
     const { beerGardens, beerTypes, ...pubPayload } = req.body || {};
@@ -351,7 +350,7 @@ router.post(
   "/:pubId/beer-types",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { pubId } = req.params;
     const parsed = pubBeerTypeSchema.safeParse(req.body);
@@ -399,7 +398,7 @@ router.delete(
   "/:pubId/beer-types/:beerTypeId",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { pubId, beerTypeId } = req.params;
     const existing = await prisma.pubBeerType.findUnique({
@@ -432,7 +431,7 @@ router.post(
   "/:pubId/beer-gardens",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { pubId } = req.params;
     const parsed = beerGardenSchema.safeParse(req.body);
@@ -474,7 +473,7 @@ router.patch(
   "/:pubId/beer-gardens/:beerGardenId",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { pubId, beerGardenId } = req.params;
     const parsed = beerGardenSchema.partial().safeParse(req.body);
@@ -522,7 +521,7 @@ router.delete(
   "/:pubId/beer-gardens/:beerGardenId",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const { pubId, beerGardenId } = req.params;
     const existing = await prisma.beerGarden.findFirst({
@@ -552,7 +551,7 @@ router.delete(
   "/:id",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.userId },
