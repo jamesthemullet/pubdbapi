@@ -196,6 +196,8 @@ router.patch(
 
     const beerGardenOps = beerGardensParsed.data || [];
     const typeOps = beerTypesParsed.data || [];
+    const hasBeerGardensPayload = Array.isArray(beerGardens);
+    const hasBeerTypesPayload = Array.isArray(beerTypes);
     for (const beerGarden of beerGardenOps) {
       if (beerGarden._delete && !beerGarden.id) {
         return res.status(400).json({
@@ -222,7 +224,13 @@ router.patch(
     }
 
     try {
-      const originalPub = await prisma.pub.findUnique({ where: { id } });
+      const originalPub = await prisma.pub.findUnique({
+        where: { id },
+        include: {
+          beerGardens: true,
+          beerTypes: { include: { beerType: true } },
+        },
+      });
       if (!originalPub) {
         return res.status(404).json({ error: "Pub not found" });
       }
@@ -247,6 +255,22 @@ router.patch(
           where: { id },
           data: updateData,
         });
+
+        if (hasBeerGardensPayload) {
+          const incomingGardenIds = new Set(
+            beerGardenOps
+              .map((beerGarden) => beerGarden.id)
+              .filter((gardenId): gardenId is string => !!gardenId)
+          );
+          const missingGardenIds = originalPub.beerGardens
+            .map((garden) => garden.id)
+            .filter((gardenId) => !incomingGardenIds.has(gardenId));
+          if (missingGardenIds.length > 0) {
+            await tx.beerGarden.deleteMany({
+              where: { pubId: id, id: { in: missingGardenIds } },
+            });
+          }
+        }
 
         for (const beerGarden of beerGardenOps) {
           if (beerGarden.id && beerGarden._delete) {
@@ -310,6 +334,22 @@ router.patch(
             update: {},
           });
         }
+
+        if (hasBeerTypesPayload) {
+          const incomingTypeIds = new Set(
+            typeOps
+              .map((typeOp) => typeOp.beerTypeId)
+              .filter((beerTypeId): beerTypeId is string => !!beerTypeId)
+          );
+          const missingTypeIds = originalPub.beerTypes
+            .map((typeLink) => typeLink.beerTypeId)
+            .filter((beerTypeId) => !incomingTypeIds.has(beerTypeId));
+          if (missingTypeIds.length > 0) {
+            await tx.pubBeerType.deleteMany({
+              where: { pubId: id, beerTypeId: { in: missingTypeIds } },
+            });
+          }
+        }
       });
 
       const updatedPub = await prisma.pub.findUnique({
@@ -343,207 +383,6 @@ router.patch(
     } catch (err) {
       return res.status(404).json({ error: "Pub not found or update failed" });
     }
-  }
-);
-
-router.post(
-  "/:pubId/beer-types",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!requireAuth(req, res)) return;
-
-    const { pubId } = req.params;
-    const parsed = pubBeerTypeSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ errors: parsed.error.flatten() });
-    }
-
-    const pub = await prisma.pub.findUnique({ where: { id: pubId } });
-    if (!pub) return res.status(404).json({ error: "Pub not found" });
-
-    const beerType = await prisma.beerType.findUnique({
-      where: { id: parsed.data.beerTypeId },
-    });
-    if (!beerType) {
-      return res.status(404).json({ error: "Beer type not found" });
-    }
-
-    const created = await prisma.pubBeerType.upsert({
-      where: {
-        pubId_beerTypeId: {
-          pubId,
-          beerTypeId: parsed.data.beerTypeId,
-        },
-      },
-      create: { pubId, beerTypeId: parsed.data.beerTypeId },
-      update: {},
-      include: { beerType: true },
-    });
-
-    const clientInfo = getClientInfo(req);
-    await createAuditLog({
-      action: "UPDATE",
-      entity: "Pub",
-      entityId: pubId,
-      userId: req.user.userId,
-      newValues: { beerTypeId: parsed.data.beerTypeId },
-      ...clientInfo,
-    });
-
-    res.status(201).json(created);
-  }
-);
-
-router.delete(
-  "/:pubId/beer-types/:beerTypeId",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!requireAuth(req, res)) return;
-
-    const { pubId, beerTypeId } = req.params;
-    const existing = await prisma.pubBeerType.findUnique({
-      where: { pubId_beerTypeId: { pubId, beerTypeId } },
-      include: { beerType: true },
-    });
-    if (!existing) {
-      return res.status(404).json({ error: "Beer type link not found" });
-    }
-
-    await prisma.pubBeerType.delete({
-      where: { pubId_beerTypeId: { pubId, beerTypeId } },
-    });
-
-    const clientInfo = getClientInfo(req);
-    await createAuditLog({
-      action: "UPDATE",
-      entity: "Pub",
-      entityId: pubId,
-      userId: req.user.userId,
-      oldValues: { beerTypeId },
-      ...clientInfo,
-    });
-
-    res.json({ message: "Beer type removed successfully" });
-  }
-);
-
-router.post(
-  "/:pubId/beer-gardens",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!requireAuth(req, res)) return;
-
-    const { pubId } = req.params;
-    const parsed = beerGardenSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ errors: parsed.error.flatten() });
-    }
-
-    const pub = await prisma.pub.findUnique({ where: { id: pubId } });
-    if (!pub) return res.status(404).json({ error: "Pub not found" });
-
-    const createData: Prisma.BeerGardenUncheckedCreateInput = {
-      pubId,
-      ...parsed.data,
-      openingHours: parsed.data.openingHours as
-        | Prisma.InputJsonValue
-        | Prisma.NullableJsonNullValueInput
-        | undefined,
-    };
-
-    const created = await prisma.beerGarden.create({
-      data: createData,
-    });
-
-    const clientInfo = getClientInfo(req);
-    await createAuditLog({
-      action: "CREATE",
-      entity: "BeerGarden",
-      entityId: created.id,
-      userId: req.user.userId,
-      newValues: created,
-      ...clientInfo,
-    });
-
-    res.status(201).json(created);
-  }
-);
-
-router.patch(
-  "/:pubId/beer-gardens/:beerGardenId",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!requireAuth(req, res)) return;
-
-    const { pubId, beerGardenId } = req.params;
-    const parsed = beerGardenSchema.partial().safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ errors: parsed.error.flatten() });
-    }
-
-    const existing = await prisma.beerGarden.findFirst({
-      where: { id: beerGardenId, pubId },
-    });
-    if (!existing) {
-      return res.status(404).json({ error: "Beer garden not found" });
-    }
-
-    const updateData: Prisma.BeerGardenUpdateInput = {
-      ...parsed.data,
-      openingHours: parsed.data.openingHours as
-        | Prisma.InputJsonValue
-        | Prisma.NullableJsonNullValueInput
-        | undefined,
-    };
-
-    const updated = await prisma.beerGarden.update({
-      where: { id: beerGardenId },
-      data: updateData,
-    });
-
-    const { oldValues, newValues } = getChangedFields(existing, updated);
-    const clientInfo = getClientInfo(req);
-    await createAuditLog({
-      action: "UPDATE",
-      entity: "BeerGarden",
-      entityId: updated.id,
-      userId: req.user.userId,
-      oldValues,
-      newValues,
-      ...clientInfo,
-    });
-
-    res.json(updated);
-  }
-);
-
-router.delete(
-  "/:pubId/beer-gardens/:beerGardenId",
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    if (!requireAuth(req, res)) return;
-
-    const { pubId, beerGardenId } = req.params;
-    const existing = await prisma.beerGarden.findFirst({
-      where: { id: beerGardenId, pubId },
-    });
-    if (!existing) {
-      return res.status(404).json({ error: "Beer garden not found" });
-    }
-
-    await prisma.beerGarden.delete({ where: { id: beerGardenId } });
-
-    const clientInfo = getClientInfo(req);
-    await createAuditLog({
-      action: "DELETE",
-      entity: "BeerGarden",
-      entityId: existing.id,
-      userId: req.user.userId,
-      oldValues: existing,
-      ...clientInfo,
-    });
-
-    res.json({ message: "Beer garden deleted successfully" });
   }
 );
 

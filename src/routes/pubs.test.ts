@@ -486,7 +486,13 @@ describe("PATCH /pubs/:id", () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Pub not found" });
-    expect(mockedFindUnique).toHaveBeenCalledWith({ where: { id: "missing" } });
+    expect(mockedFindUnique).toHaveBeenCalledWith({
+      where: { id: "missing" },
+      include: {
+        beerGardens: true,
+        beerTypes: { include: { beerType: true } },
+      },
+    });
     expect(mockedTransaction).not.toHaveBeenCalled();
   });
 
@@ -497,7 +503,13 @@ describe("PATCH /pubs/:id", () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Pub not found" });
-    expect(mockedFindUnique).toHaveBeenCalledWith({ where: { id: "missing" } });
+    expect(mockedFindUnique).toHaveBeenCalledWith({
+      where: { id: "missing" },
+      include: {
+        beerGardens: true,
+        beerTypes: { include: { beerType: true } },
+      },
+    });
   });
 
   it("nulls non-system fields omitted from payload - effectively ability to delete a field", async () => {
@@ -632,6 +644,66 @@ describe("PATCH /pubs/:id", () => {
     });
   });
 
+  it("removes beer gardens and beer types omitted from payload", async () => {
+    const originalPub = {
+      id: "pub_omit",
+      name: "Original",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [{ id: "bg_keep" }, { id: "bg_remove" }],
+      beerTypes: [
+        { beerTypeId: "bt_keep", beerType: { id: "bt_keep" } },
+        { beerTypeId: "bt_remove", beerType: { id: "bt_remove" } },
+      ],
+    } as any;
+
+    const updatedPub = {
+      id: "pub_omit",
+      name: "Updated",
+      beerGardens: [{ id: "bg_keep" }],
+      beerTypes: [{ beerType: { id: "bt_keep" } }],
+    } as any;
+
+    mockedFindUnique
+      .mockResolvedValueOnce(originalPub)
+      .mockResolvedValueOnce(updatedPub);
+
+    const tx = {
+      pub: { update: vi.fn() },
+      beerGarden: {
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
+      },
+      pubBeerType: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
+
+    mockedTransaction.mockImplementation(async (callback) => callback(tx));
+    mockedGetChangedFields.mockReturnValue({
+      oldValues: { name: "Original" },
+      newValues: { name: "Updated" },
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_omit")
+      .send({
+        name: "Updated",
+        beerGardens: [{ id: "bg_keep", name: "Keep" }],
+        beerTypes: [{ beerTypeId: "bt_keep" }],
+      });
+
+    expect(response.status).toBe(200);
+    expect(tx.beerGarden.deleteMany).toHaveBeenCalledWith({
+      where: { pubId: "pub_omit", id: { in: ["bg_remove"] } },
+    });
+    expect(tx.pubBeerType.deleteMany).toHaveBeenCalledWith({
+      where: { pubId: "pub_omit", beerTypeId: { in: ["bt_remove"] } },
+    });
+  });
+
   it("applies beer garden and beer type operations", async () => {
     const originalPub = {
       id: "pub_9",
@@ -760,164 +832,6 @@ describe("PATCH /pubs/:id", () => {
   });
 });
 
-describe("POST /pubs/:pubId/beer-types", () => {
-  beforeEach(() => {
-    mockedRequireAuth.mockReset();
-    mockedRequireAuth.mockReturnValue(true);
-    mockedFindUnique.mockReset();
-    mockedBeerTypeFindUnique.mockReset();
-    mockedPubBeerTypeUpsert.mockReset();
-    mockedCreateAuditLog.mockReset();
-  });
-
-  it("links a beer type to a pub", async () => {
-    mockedFindUnique.mockResolvedValueOnce({ id: "pub_11" } as any);
-    mockedBeerTypeFindUnique.mockResolvedValueOnce({ id: "bt_11" } as any);
-    mockedPubBeerTypeUpsert.mockResolvedValueOnce({
-      pubId: "pub_11",
-      beerTypeId: "bt_11",
-      beerType: { id: "bt_11", name: "IPA" },
-    } as any);
-
-    const response = await request(app)
-      .post("/pubs/pub_11/beer-types")
-      .send({ beerTypeId: "bt_11" });
-
-    expect(response.status).toBe(201);
-    expect(mockedPubBeerTypeUpsert).toHaveBeenCalledWith({
-      where: {
-        pubId_beerTypeId: { pubId: "pub_11", beerTypeId: "bt_11" },
-      },
-      create: { pubId: "pub_11", beerTypeId: "bt_11" },
-      update: {},
-      include: { beerType: true },
-    });
-    expect(mockedCreateAuditLog).toHaveBeenCalled();
-  });
-});
-
-describe("DELETE /pubs/:pubId/beer-types/:beerTypeId", () => {
-  beforeEach(() => {
-    mockedRequireAuth.mockReset();
-    mockedRequireAuth.mockReturnValue(true);
-    mockedPubBeerTypeFindUnique.mockReset();
-    mockedPubBeerTypeDelete.mockReset();
-    mockedCreateAuditLog.mockReset();
-  });
-
-  it("removes a beer type link", async () => {
-    mockedPubBeerTypeFindUnique.mockResolvedValueOnce({
-      pubId: "pub_12",
-      beerTypeId: "bt_12",
-      beerType: { id: "bt_12" },
-    } as any);
-
-    const response = await request(app).delete("/pubs/pub_12/beer-types/bt_12");
-
-    expect(response.status).toBe(200);
-    expect(mockedPubBeerTypeDelete).toHaveBeenCalledWith({
-      where: { pubId_beerTypeId: { pubId: "pub_12", beerTypeId: "bt_12" } },
-    });
-    expect(mockedCreateAuditLog).toHaveBeenCalled();
-  });
-});
-
-describe("POST /pubs/:pubId/beer-gardens", () => {
-  beforeEach(() => {
-    mockedRequireAuth.mockReset();
-    mockedRequireAuth.mockReturnValue(true);
-    mockedFindUnique.mockReset();
-    mockedBeerGardenCreate.mockReset();
-    mockedCreateAuditLog.mockReset();
-  });
-
-  it("creates a beer garden for the pub", async () => {
-    mockedFindUnique.mockResolvedValueOnce({ id: "pub_13" } as any);
-    mockedBeerGardenCreate.mockResolvedValueOnce({
-      id: "bg_13",
-      pubId: "pub_13",
-      name: "Garden",
-    } as any);
-
-    const response = await request(app)
-      .post("/pubs/pub_13/beer-gardens")
-      .send({ name: "Garden" });
-
-    expect(response.status).toBe(201);
-    expect(mockedBeerGardenCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ pubId: "pub_13", name: "Garden" }),
-    });
-    expect(mockedCreateAuditLog).toHaveBeenCalled();
-  });
-});
-
-describe("PATCH /pubs/:pubId/beer-gardens/:beerGardenId", () => {
-  beforeEach(() => {
-    mockedRequireAuth.mockReset();
-    mockedRequireAuth.mockReturnValue(true);
-    mockedBeerGardenFindFirst.mockReset();
-    mockedBeerGardenUpdate.mockReset();
-    mockedCreateAuditLog.mockReset();
-    mockedGetChangedFields.mockReset();
-  });
-
-  it("updates a beer garden", async () => {
-    mockedBeerGardenFindFirst.mockResolvedValueOnce({
-      id: "bg_14",
-      pubId: "pub_14",
-      name: "Old Garden",
-    } as any);
-    mockedBeerGardenUpdate.mockResolvedValueOnce({
-      id: "bg_14",
-      pubId: "pub_14",
-      name: "New Garden",
-    } as any);
-    mockedGetChangedFields.mockReturnValue({
-      oldValues: { name: "Old Garden" },
-      newValues: { name: "New Garden" },
-    });
-
-    const response = await request(app)
-      .patch("/pubs/pub_14/beer-gardens/bg_14")
-      .send({ name: "New Garden" });
-
-    expect(response.status).toBe(200);
-    expect(mockedBeerGardenUpdate).toHaveBeenCalledWith({
-      where: { id: "bg_14" },
-      data: expect.objectContaining({ name: "New Garden" }),
-    });
-    expect(mockedCreateAuditLog).toHaveBeenCalled();
-  });
-});
-
-describe("DELETE /pubs/:pubId/beer-gardens/:beerGardenId", () => {
-  beforeEach(() => {
-    mockedRequireAuth.mockReset();
-    mockedRequireAuth.mockReturnValue(true);
-    mockedBeerGardenFindFirst.mockReset();
-    mockedBeerGardenDelete.mockReset();
-    mockedCreateAuditLog.mockReset();
-  });
-
-  it("deletes a beer garden", async () => {
-    mockedBeerGardenFindFirst.mockResolvedValueOnce({
-      id: "bg_15",
-      pubId: "pub_15",
-      name: "Garden",
-    } as any);
-
-    const response = await request(app).delete(
-      "/pubs/pub_15/beer-gardens/bg_15"
-    );
-
-    expect(response.status).toBe(200);
-    expect(mockedBeerGardenDelete).toHaveBeenCalledWith({
-      where: { id: "bg_15" },
-    });
-    expect(mockedCreateAuditLog).toHaveBeenCalled();
-  });
-});
-
 describe("DELETE /pubs/:id", () => {
   beforeEach(() => {
     mockedRequireAuth.mockReset();
@@ -943,5 +857,67 @@ describe("DELETE /pubs/:id", () => {
     expect(response.status).toBe(200);
     expect(mockedDeletePub).toHaveBeenCalledWith({ where: { id: "pub_16" } });
     expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+
+  it("returns 403 when user lacks access", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce({
+      admin: false,
+      approved: false,
+    } as any);
+
+    const response = await request(app).delete("/pubs/pub_17");
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({
+      error: "Admin or approved user access required",
+    });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedDeletePub).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when pub does not exist", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce({
+      admin: true,
+      approved: false,
+    } as any);
+    mockedFindUnique.mockResolvedValueOnce(null as any);
+
+    const response = await request(app).delete("/pubs/pub_18");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Pub not found" });
+    expect(mockedDeletePub).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when delete fails", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce({
+      admin: true,
+      approved: false,
+    } as any);
+    mockedFindUnique.mockResolvedValueOnce({
+      id: "pub_19",
+      name: "Delete Me",
+    } as any);
+    mockedDeletePub.mockRejectedValueOnce(new Error("db error"));
+
+    const response = await request(app).delete("/pubs/pub_19");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Pub not found" });
+  });
+
+  it("returns early when authentication fails", async () => {
+    mockedRequireAuth.mockImplementationOnce((req, res) => {
+      res.status(401).json({ error: "Not authenticated" });
+      return false;
+    });
+
+    const response = await request(app).delete("/pubs/pub_20");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Not authenticated" });
+    expect(mockedUserFindUnique).not.toHaveBeenCalled();
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedDeletePub).not.toHaveBeenCalled();
   });
 });
