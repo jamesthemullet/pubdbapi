@@ -16,7 +16,7 @@ interface AuditLogData {
   userAgent?: string;
 }
 
-export async function createAuditLog(data: AuditLogData) {
+export const createAuditLog = async (data: AuditLogData) => {
   try {
     await prisma.auditLog.create({
       data: {
@@ -33,18 +33,18 @@ export async function createAuditLog(data: AuditLogData) {
   } catch (error) {
     console.error("Failed to create audit log:", error);
   }
-}
+};
 
 // Helper function to get client info from request
-export function getClientInfo(req: any) {
+export const getClientInfo = (req: any) => {
   return {
     ipAddress: req.ip || req.connection.remoteAddress || "unknown",
     userAgent: req.get("User-Agent") || "unknown",
   };
-}
+};
 
 // Helper function to compare objects and get only changed fields
-export function getChangedFields(oldObj: any, newObj: any) {
+export const getChangedFields = (oldObj: any, newObj: any) => {
   const changes: any = {};
   const oldValues: any = {};
   const newValues: any = {};
@@ -57,4 +57,4 @@ export function getChangedFields(oldObj: any, newObj: any) {
   }
 
   return { oldValues, newValues };
-}
+};

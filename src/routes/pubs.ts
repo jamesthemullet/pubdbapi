@@ -194,15 +194,15 @@ router.patch(
       return res.status(400).json({ errors: beerTypesParsed.error.flatten() });
     }
 
-    const gardenOps = beerGardensParsed.data || [];
+    const beerGardenOps = beerGardensParsed.data || [];
     const typeOps = beerTypesParsed.data || [];
-    for (const garden of gardenOps) {
-      if (garden._delete && !garden.id) {
+    for (const beerGarden of beerGardenOps) {
+      if (beerGarden._delete && !beerGarden.id) {
         return res.status(400).json({
           error: "Beer garden id is required for delete",
         });
       }
-      if (!garden.id && !garden._delete && !garden.name) {
+      if (!beerGarden.id && !beerGarden._delete && !beerGarden.name) {
         return res.status(400).json({
           error: "Beer garden name is required for create",
         });
@@ -248,21 +248,21 @@ router.patch(
           data: updateData,
         });
 
-        for (const garden of gardenOps) {
-          if (garden.id && garden._delete) {
+        for (const beerGarden of beerGardenOps) {
+          if (beerGarden.id && beerGarden._delete) {
             await tx.beerGarden.deleteMany({
-              where: { id: garden.id, pubId: id },
+              where: { id: beerGarden.id, pubId: id },
             });
             continue;
           }
 
-          if (garden.id) {
-            const { id: _, _delete, ...gardenData } = garden;
+          if (beerGarden.id) {
+            const { id: _, _delete, ...beerGardenData } = beerGarden;
             await tx.beerGarden.updateMany({
-              where: { id: garden.id, pubId: id },
+              where: { id: beerGarden.id, pubId: id },
               data: {
-                ...gardenData,
-                openingHours: gardenData.openingHours as
+                ...beerGardenData,
+                openingHours: beerGardenData.openingHours as
                   | Prisma.InputJsonValue
                   | Prisma.NullableJsonNullValueInput
                   | undefined,
@@ -271,23 +271,23 @@ router.patch(
             continue;
           }
 
-          const { id: _, _delete, ...gardenData } = garden;
+          const { id: _, _delete, ...beerGardenData } = beerGarden;
           const createData: Prisma.BeerGardenUncheckedCreateInput = {
             pubId: id,
-            name: gardenData.name as string,
-            description: gardenData.description,
-            seatingCapacity: gardenData.seatingCapacity,
-            sunExposure: gardenData.sunExposure,
-            isCovered: gardenData.isCovered,
-            isHeated: gardenData.isHeated,
-            isFamilyFriendly: gardenData.isFamilyFriendly,
-            petFriendly: gardenData.petFriendly,
-            openingHours: gardenData.openingHours as
+            name: beerGardenData.name as string,
+            description: beerGardenData.description,
+            seatingCapacity: beerGardenData.seatingCapacity,
+            sunExposure: beerGardenData.sunExposure,
+            isCovered: beerGardenData.isCovered,
+            isHeated: beerGardenData.isHeated,
+            isFamilyFriendly: beerGardenData.isFamilyFriendly,
+            petFriendly: beerGardenData.petFriendly,
+            openingHours: beerGardenData.openingHours as
               | Prisma.InputJsonValue
               | Prisma.NullableJsonNullValueInput
               | undefined,
-            imageUrl: gardenData.imageUrl,
-            notes: gardenData.notes,
+            imageUrl: beerGardenData.imageUrl,
+            notes: beerGardenData.notes,
           };
           await tx.beerGarden.create({
             data: createData,

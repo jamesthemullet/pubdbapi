@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import router from "./pubs";
 import { prisma } from "../server";
 import { requireAuth } from "../utils/authCheck";
+import { createAuditLog, getChangedFields } from "../utils/auditLog";
+import { pubBeerTypesPatchSchema } from "../types";
 
 vi.mock("../server", () => ({
   prisma: {
@@ -13,7 +15,30 @@ vi.mock("../server", () => ({
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
+    beerGarden: {
+      findFirst: vi.fn(),
+      deleteMany: vi.fn(),
+      updateMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    pubBeerType: {
+      findUnique: vi.fn(),
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+    },
+    beerType: {
+      findUnique: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -30,11 +55,24 @@ vi.mock("../utils/auditLog", () => ({
     ipAddress: "127.0.0.1",
     userAgent: "test-agent",
   })),
+  getChangedFields: vi.fn(),
 }));
 
 vi.mock("../utils/authCheck", () => ({
   requireAuth: vi.fn(),
 }));
+
+vi.mock("../types", async () => {
+  const actual = await vi.importActual<typeof import("../types")>("../types");
+  return {
+    ...actual,
+    pubBeerTypesPatchSchema: {
+      // provide a mockable wrapper and expose the real safeParse as __actualSafeParse
+      safeParse: vi.fn(actual.pubBeerTypesPatchSchema.safeParse),
+      __actualSafeParse: actual.pubBeerTypesPatchSchema.safeParse,
+    },
+  };
+});
 
 const app = express();
 app.use(express.json());
@@ -51,7 +89,42 @@ const mockedFindFirst = prisma.pub.findFirst as unknown as ReturnType<
   typeof vi.fn
 >;
 const mockedCreate = prisma.pub.create as unknown as ReturnType<typeof vi.fn>;
+const mockedDeletePub = prisma.pub.delete as unknown as ReturnType<
+  typeof vi.fn
+>;
 const mockedRequireAuth = requireAuth as unknown as ReturnType<typeof vi.fn>;
+const mockedUpdate = prisma.pub.update as unknown as ReturnType<typeof vi.fn>;
+const mockedTransaction = prisma.$transaction as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockedBeerGardenFindFirst = prisma.beerGarden
+  .findFirst as unknown as ReturnType<typeof vi.fn>;
+const mockedBeerGardenUpdate = prisma.beerGarden
+  .update as unknown as ReturnType<typeof vi.fn>;
+const mockedBeerGardenDelete = prisma.beerGarden
+  .delete as unknown as ReturnType<typeof vi.fn>;
+const mockedBeerGardenCreate = prisma.beerGarden
+  .create as unknown as ReturnType<typeof vi.fn>;
+const mockedBeerTypeFindUnique = prisma.beerType
+  .findUnique as unknown as ReturnType<typeof vi.fn>;
+const mockedPubBeerTypeFindUnique = prisma.pubBeerType
+  .findUnique as unknown as ReturnType<typeof vi.fn>;
+const mockedPubBeerTypeDelete = prisma.pubBeerType
+  .delete as unknown as ReturnType<typeof vi.fn>;
+const mockedPubBeerTypeUpsert = prisma.pubBeerType
+  .upsert as unknown as ReturnType<typeof vi.fn>;
+const mockedUserFindUnique = prisma.user.findUnique as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockedCreateAuditLog = createAuditLog as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockedGetChangedFields = getChangedFields as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockedBeerTypesSafeParse = (
+  pubBeerTypesPatchSchema as unknown as { safeParse: ReturnType<typeof vi.fn> }
+).safeParse;
 
 describe("GET /pubs", () => {
   beforeEach(() => {
@@ -277,5 +350,598 @@ describe("POST /pubs", () => {
     expect(response.body).toEqual({ error: "Not authenticated" });
     expect(mockedFindFirst).not.toHaveBeenCalled();
     expect(mockedCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /pubs/:id", () => {
+  beforeEach(() => {
+    mockedFindUnique.mockReset();
+    mockedUpdate.mockReset();
+    mockedTransaction.mockReset();
+    mockedCreateAuditLog.mockReset();
+    mockedGetChangedFields.mockReset();
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedBeerTypesSafeParse.mockReset();
+    mockedBeerTypesSafeParse.mockImplementation(
+      (pubBeerTypesPatchSchema as any).__actualSafeParse
+    );
+  });
+
+  it("returns early when authentication fails", async () => {
+    mockedRequireAuth.mockImplementationOnce((req, res) => {
+      res.status(401).json({ error: "Not authenticated" });
+      return false;
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ name: "Updated Pub" });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Not authenticated" });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid data", async () => {
+    const response = await request(app).patch("/pubs/pub_1").send({ name: "" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("errors");
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid beer gardens payload", async () => {
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerGardens: "not-an-array" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("errors");
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid beer types payload", async () => {
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerTypes: "not-an-array" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("errors");
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when beer garden delete is missing id", async () => {
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerGardens: [{ _delete: true }] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: "Beer garden id is required for delete",
+    });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when beer garden create is missing name", async () => {
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerGardens: [{}] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: "Beer garden name is required for create",
+    });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when beer type delete is missing id", async () => {
+    mockedBeerTypesSafeParse.mockReturnValueOnce({
+      success: true,
+      data: [{ _delete: true }],
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerTypes: [{ _delete: true }] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: "Beer type id is required for delete",
+    });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when beer type create is missing id", async () => {
+    mockedBeerTypesSafeParse.mockReturnValueOnce({
+      success: true,
+      data: [{}],
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ beerTypes: [{}] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: "Beer type id is required for create",
+    });
+    expect(mockedFindUnique).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when pub is not found", async () => {
+    mockedFindUnique.mockResolvedValueOnce(null as any);
+
+    const response = await request(app)
+      .patch("/pubs/missing")
+      .send({ name: "Updated Pub" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Pub not found" });
+    expect(mockedFindUnique).toHaveBeenCalledWith({ where: { id: "missing" } });
+    expect(mockedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("handles missing body payload", async () => {
+    mockedFindUnique.mockResolvedValueOnce(null as any);
+
+    const response = await request(app).patch("/pubs/missing");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Pub not found" });
+    expect(mockedFindUnique).toHaveBeenCalledWith({ where: { id: "missing" } });
+  });
+
+  it("nulls non-system fields omitted from payload - effectively ability to delete a field", async () => {
+    const originalPub = {
+      id: "pub_2",
+      name: "Original Name",
+      operator: "Old Operator",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    const updatedPub = {
+      id: "pub_2",
+      name: "New Name",
+      operator: null,
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    // Return the original pub for both reads to ensure the flow continues
+    mockedFindUnique.mockResolvedValue(originalPub);
+
+    const tx = {
+      pub: { update: vi.fn() },
+      beerGarden: {
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
+      },
+      pubBeerType: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
+
+    mockedTransaction.mockImplementation(async (callback) => callback(tx));
+    mockedGetChangedFields.mockReturnValue({
+      oldValues: { name: "Original Name" },
+      newValues: { name: "New Name" },
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_2")
+      .send({ name: "New Name" });
+
+    expect(response.status).toBe(200);
+    // tx.pub.update should be called with data.operator === null
+    expect(tx.pub.update).toHaveBeenCalled();
+    const updateArg = (tx.pub.update as any).mock.calls[0][0];
+    expect(updateArg.data).toHaveProperty("operator", null);
+  });
+
+  it("updates the pub and returns the updated record", async () => {
+    const originalPub = {
+      id: "pub_1",
+      name: "Old Name",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    const updatedPub = {
+      id: "pub_1",
+      name: "Updated Name",
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    mockedFindUnique
+      .mockResolvedValueOnce(originalPub)
+      .mockResolvedValueOnce(updatedPub);
+
+    const tx = {
+      pub: { update: vi.fn() },
+      beerGarden: {
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
+      },
+      pubBeerType: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
+
+    mockedTransaction.mockImplementation(async (callback) => callback(tx));
+    mockedGetChangedFields.mockReturnValue({
+      oldValues: { name: "Old Name" },
+      newValues: { name: "Updated Name" },
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_1")
+      .send({ name: "Updated Name" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(updatedPub);
+    expect(tx.pub.update).toHaveBeenCalled();
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+    expect(mockedFindUnique).toHaveBeenCalledWith({
+      where: { id: "pub_1" },
+      include: {
+        beerGardens: true,
+        beerTypes: { include: { beerType: true } },
+      },
+    });
+  });
+
+  it("returns 404 when update transaction fails", async () => {
+    const originalPub = {
+      id: "pub_fail",
+      name: "Original",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    mockedFindUnique.mockResolvedValueOnce(originalPub);
+    mockedTransaction.mockRejectedValueOnce(new Error("db error"));
+
+    const response = await request(app)
+      .patch("/pubs/pub_fail")
+      .send({ name: "Updated" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      error: "Pub not found or update failed",
+    });
+  });
+
+  it("applies beer garden and beer type operations", async () => {
+    const originalPub = {
+      id: "pub_9",
+      name: "Original",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    const updatedPub = {
+      id: "pub_9",
+      name: "Updated",
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    mockedFindUnique
+      .mockResolvedValueOnce(originalPub)
+      .mockResolvedValueOnce(updatedPub);
+
+    const tx = {
+      pub: { update: vi.fn() },
+      beerGarden: {
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
+      },
+      pubBeerType: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
+
+    mockedTransaction.mockImplementation(async (callback) => callback(tx));
+    mockedGetChangedFields.mockReturnValue({
+      oldValues: { name: "Original" },
+      newValues: { name: "Updated" },
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_9")
+      .send({
+        name: "Updated",
+        beerGardens: [
+          { id: "bg_del", _delete: true },
+          {
+            id: "bg_upd",
+            name: "Updated Garden",
+            openingHours: { mon: { open: "10:00", close: "18:00" } },
+          },
+          { name: "New Garden", seatingCapacity: 10 },
+        ],
+        beerTypes: [
+          { beerTypeId: "bt_del", _delete: true },
+          { beerTypeId: "bt_upsert" },
+        ],
+      });
+
+    expect(response.status).toBe(200);
+    expect(tx.beerGarden.deleteMany).toHaveBeenCalledWith({
+      where: { id: "bg_del", pubId: "pub_9" },
+    });
+    expect(tx.beerGarden.updateMany).toHaveBeenCalledWith({
+      where: { id: "bg_upd", pubId: "pub_9" },
+      data: expect.objectContaining({
+        name: "Updated Garden",
+        openingHours: { mon: { open: "10:00", close: "18:00" } },
+      }),
+    });
+    expect(tx.beerGarden.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        pubId: "pub_9",
+        name: "New Garden",
+        seatingCapacity: 10,
+      }),
+    });
+    expect(tx.pubBeerType.deleteMany).toHaveBeenCalledWith({
+      where: { pubId: "pub_9", beerTypeId: "bt_del" },
+    });
+    expect(tx.pubBeerType.upsert).toHaveBeenCalledWith({
+      where: {
+        pubId_beerTypeId: { pubId: "pub_9", beerTypeId: "bt_upsert" },
+      },
+      create: { pubId: "pub_9", beerTypeId: "bt_upsert" },
+      update: {},
+    });
+  });
+
+  it("returns 404 when updated pub cannot be loaded", async () => {
+    const originalPub = {
+      id: "pub_10",
+      name: "Original",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      beerGardens: [],
+      beerTypes: [],
+    } as any;
+
+    mockedFindUnique
+      .mockResolvedValueOnce(originalPub)
+      .mockResolvedValueOnce(null as any);
+
+    const tx = {
+      pub: { update: vi.fn() },
+      beerGarden: {
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
+        create: vi.fn(),
+      },
+      pubBeerType: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
+    };
+
+    mockedTransaction.mockImplementation(async (callback) => callback(tx));
+
+    const response = await request(app)
+      .patch("/pubs/pub_10")
+      .send({ name: "Updated" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Pub not found" });
+    expect(mockedCreateAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /pubs/:pubId/beer-types", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedFindUnique.mockReset();
+    mockedBeerTypeFindUnique.mockReset();
+    mockedPubBeerTypeUpsert.mockReset();
+    mockedCreateAuditLog.mockReset();
+  });
+
+  it("links a beer type to a pub", async () => {
+    mockedFindUnique.mockResolvedValueOnce({ id: "pub_11" } as any);
+    mockedBeerTypeFindUnique.mockResolvedValueOnce({ id: "bt_11" } as any);
+    mockedPubBeerTypeUpsert.mockResolvedValueOnce({
+      pubId: "pub_11",
+      beerTypeId: "bt_11",
+      beerType: { id: "bt_11", name: "IPA" },
+    } as any);
+
+    const response = await request(app)
+      .post("/pubs/pub_11/beer-types")
+      .send({ beerTypeId: "bt_11" });
+
+    expect(response.status).toBe(201);
+    expect(mockedPubBeerTypeUpsert).toHaveBeenCalledWith({
+      where: {
+        pubId_beerTypeId: { pubId: "pub_11", beerTypeId: "bt_11" },
+      },
+      create: { pubId: "pub_11", beerTypeId: "bt_11" },
+      update: {},
+      include: { beerType: true },
+    });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /pubs/:pubId/beer-types/:beerTypeId", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedPubBeerTypeFindUnique.mockReset();
+    mockedPubBeerTypeDelete.mockReset();
+    mockedCreateAuditLog.mockReset();
+  });
+
+  it("removes a beer type link", async () => {
+    mockedPubBeerTypeFindUnique.mockResolvedValueOnce({
+      pubId: "pub_12",
+      beerTypeId: "bt_12",
+      beerType: { id: "bt_12" },
+    } as any);
+
+    const response = await request(app).delete("/pubs/pub_12/beer-types/bt_12");
+
+    expect(response.status).toBe(200);
+    expect(mockedPubBeerTypeDelete).toHaveBeenCalledWith({
+      where: { pubId_beerTypeId: { pubId: "pub_12", beerTypeId: "bt_12" } },
+    });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+});
+
+describe("POST /pubs/:pubId/beer-gardens", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedFindUnique.mockReset();
+    mockedBeerGardenCreate.mockReset();
+    mockedCreateAuditLog.mockReset();
+  });
+
+  it("creates a beer garden for the pub", async () => {
+    mockedFindUnique.mockResolvedValueOnce({ id: "pub_13" } as any);
+    mockedBeerGardenCreate.mockResolvedValueOnce({
+      id: "bg_13",
+      pubId: "pub_13",
+      name: "Garden",
+    } as any);
+
+    const response = await request(app)
+      .post("/pubs/pub_13/beer-gardens")
+      .send({ name: "Garden" });
+
+    expect(response.status).toBe(201);
+    expect(mockedBeerGardenCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ pubId: "pub_13", name: "Garden" }),
+    });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /pubs/:pubId/beer-gardens/:beerGardenId", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedBeerGardenFindFirst.mockReset();
+    mockedBeerGardenUpdate.mockReset();
+    mockedCreateAuditLog.mockReset();
+    mockedGetChangedFields.mockReset();
+  });
+
+  it("updates a beer garden", async () => {
+    mockedBeerGardenFindFirst.mockResolvedValueOnce({
+      id: "bg_14",
+      pubId: "pub_14",
+      name: "Old Garden",
+    } as any);
+    mockedBeerGardenUpdate.mockResolvedValueOnce({
+      id: "bg_14",
+      pubId: "pub_14",
+      name: "New Garden",
+    } as any);
+    mockedGetChangedFields.mockReturnValue({
+      oldValues: { name: "Old Garden" },
+      newValues: { name: "New Garden" },
+    });
+
+    const response = await request(app)
+      .patch("/pubs/pub_14/beer-gardens/bg_14")
+      .send({ name: "New Garden" });
+
+    expect(response.status).toBe(200);
+    expect(mockedBeerGardenUpdate).toHaveBeenCalledWith({
+      where: { id: "bg_14" },
+      data: expect.objectContaining({ name: "New Garden" }),
+    });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /pubs/:pubId/beer-gardens/:beerGardenId", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedBeerGardenFindFirst.mockReset();
+    mockedBeerGardenDelete.mockReset();
+    mockedCreateAuditLog.mockReset();
+  });
+
+  it("deletes a beer garden", async () => {
+    mockedBeerGardenFindFirst.mockResolvedValueOnce({
+      id: "bg_15",
+      pubId: "pub_15",
+      name: "Garden",
+    } as any);
+
+    const response = await request(app).delete(
+      "/pubs/pub_15/beer-gardens/bg_15"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedBeerGardenDelete).toHaveBeenCalledWith({
+      where: { id: "bg_15" },
+    });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /pubs/:id", () => {
+  beforeEach(() => {
+    mockedRequireAuth.mockReset();
+    mockedRequireAuth.mockReturnValue(true);
+    mockedUserFindUnique.mockReset();
+    mockedFindUnique.mockReset();
+    mockedDeletePub.mockReset();
+    mockedCreateAuditLog.mockReset();
+  });
+
+  it("deletes a pub when the user is approved", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce({
+      admin: false,
+      approved: true,
+    } as any);
+    mockedFindUnique.mockResolvedValueOnce({
+      id: "pub_16",
+      name: "Delete Me",
+    } as any);
+
+    const response = await request(app).delete("/pubs/pub_16");
+
+    expect(response.status).toBe(200);
+    expect(mockedDeletePub).toHaveBeenCalledWith({ where: { id: "pub_16" } });
+    expect(mockedCreateAuditLog).toHaveBeenCalled();
   });
 });
