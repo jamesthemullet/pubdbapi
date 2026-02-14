@@ -33,8 +33,14 @@ router.get("/", async (req, res) => {
   } = req.query;
   let where: any = {};
 
-  const pageNum = parseInt(page as string);
-  const limitNum = Math.min(parseInt(limit as string), 100);
+  const parsedPage = Number.parseInt(page as string, 10);
+  const parsedLimit = Number.parseInt(limit as string, 10);
+  const pageNum = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+  const limitNum =
+    Number.isNaN(parsedLimit) || parsedLimit < 1
+      ? 50
+      : Math.min(parsedLimit, 100);
+  const skip = (pageNum - 1) * limitNum;
 
   if (city) {
     where.city = { equals: String(city), mode: "insensitive" };
@@ -86,6 +92,8 @@ router.get("/", async (req, res) => {
     prisma.pub.findMany({
       where,
       orderBy: { name: "asc" },
+      skip,
+      take: limitNum,
     }),
     prisma.pub.count({ where }),
   ]);

@@ -151,6 +151,8 @@ describe("GET /pubs", () => {
         name: { contains: "Crown", mode: "insensitive" },
       },
       orderBy: { name: "asc" },
+      skip: 0,
+      take: 50,
     });
     expect(mockedCount).toHaveBeenCalledWith({
       where: {
@@ -181,6 +183,8 @@ describe("GET /pubs", () => {
         country: { equals: "GB", mode: "insensitive" },
       },
       orderBy: { name: "asc" },
+      skip: 0,
+      take: 50,
     });
     expect(mockedCount).toHaveBeenCalledWith({
       where: {
