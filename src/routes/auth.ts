@@ -116,10 +116,6 @@ router.post("/login", async (req, res) => {
   res.json({ token });
 });
 
-router.post("/logout", authMiddleware, async (req, res) => {
-  res.json({ message: "Logged out" });
-});
-
 router.post("/forgot-password", async (req, res) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -145,6 +141,40 @@ router.post("/forgot-password", async (req, res) => {
 
   await sendResetEmail(email, resetToken);
   res.json({ message: "If the email exists, a reset link has been sent" });
+});
+
+router.post("/reset-password", async (req, res) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+
+  const { token, password } = parsed.data;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetToken: token,
+      resetExpiry: { gt: new Date() },
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json({ error: "Reset token is invalid or expired" });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  await prisma.account.updateMany({
+    where: { userId: user.id, provider: "local" },
+    data: { access_token: hashed },
+  });
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetToken: null, resetExpiry: null },
+  });
+
+  res.json({ message: "Password has been reset successfully" });
 });
 
 router.post("/forgot-api-key", async (req, res) => {
@@ -248,40 +278,6 @@ router.post("/forgot-api-key", async (req, res) => {
       key: fullKey,
     },
   });
-});
-
-router.post("/reset-password", async (req, res) => {
-  const parsed = resetPasswordSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ errors: parsed.error.flatten() });
-  }
-
-  const { token, password } = parsed.data;
-
-  const user = await prisma.user.findFirst({
-    where: {
-      resetToken: token,
-      resetExpiry: { gt: new Date() },
-    },
-  });
-
-  if (!user) {
-    return res.status(400).json({ error: "Reset token is invalid or expired" });
-  }
-
-  const hashed = await bcrypt.hash(password, 10);
-
-  await prisma.account.updateMany({
-    where: { userId: user.id, provider: "local" },
-    data: { access_token: hashed },
-  });
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { resetToken: null, resetExpiry: null },
-  });
-
-  res.json({ message: "Password has been reset successfully" });
 });
 
 router.get("/verify", async (req, res) => {
