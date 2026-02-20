@@ -5,7 +5,6 @@ import { PrismaClient } from "@prisma/client";
 
 import authRoutes from "./routes/auth";
 import pubRoutes from "./routes/pubs";
-import auditRoutes from "./routes/audit";
 import publicRoutes from "./routes/public";
 import paymentsRoutes from "./routes/payments";
 import stripeWebhooks from "./routes/stripeWebhooks";
@@ -27,7 +26,6 @@ app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/pubs", pubRoutes);
-app.use("/audit", auditRoutes);
 app.use("/api/v1", publicRoutes);
 app.use("/payments", paymentsRoutes);
 
