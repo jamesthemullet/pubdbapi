@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
   const limitNum =
     Number.isNaN(parsedLimit) || parsedLimit < 1
       ? 50
-      : Math.min(parsedLimit, 100);
+      : Math.min(parsedLimit, 10000);
   const skip = (pageNum - 1) * limitNum;
 
   if (city) {

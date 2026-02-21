@@ -7,7 +7,6 @@ import authRoutes from "./routes/auth";
 import pubRoutes from "./routes/pubs";
 import publicRoutes from "./routes/public";
 import paymentsRoutes from "./routes/payments";
-import stripeWebhooks from "./routes/stripeWebhooks";
 
 dotenv.config();
 
@@ -15,12 +14,6 @@ const app = express();
 export const prisma = new PrismaClient();
 
 app.use(cors());
-
-app.use(
-  "/webhooks/stripe",
-  express.raw({ type: "application/json" }),
-  stripeWebhooks as any
-);
 
 app.use(express.json());
 
