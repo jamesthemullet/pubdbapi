@@ -1,5 +1,10 @@
 import { Router, Response } from "express";
 import Stripe from "stripe";
+import stripeRawRequest from "../utils/stripeRawRequest";
+import {
+  API_KEY_LIMITS_BY_TIER,
+  API_KEY_PERMISSIONS_BY_TIER,
+} from "../utils/subscriptionTierConfig";
 import crypto from "crypto";
 import { authMiddleware } from "../middleware/auth";
 import { AuthenticatedRequest } from "../types";
@@ -15,61 +20,6 @@ if (!process.env.STRIPE_SECRET_KEY) {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-08-27.basil",
 });
-
-async function stripeRawRequest(
-  method: "GET" | "POST",
-  path: string,
-  params?: Record<string, any>
-) {
-  if (typeof (stripe as any).request === "function") {
-    return await (stripe as any).request({ method, url: path, params });
-  }
-
-  const base = "https://api.stripe.com";
-  const url = base + path;
-  let fetchUrl = url;
-  let body: string | undefined = undefined;
-  if (params) {
-    const usp = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) {
-      usp.append(k, String(v));
-    }
-    if (method === "GET") fetchUrl = `${url}?${usp.toString()}`;
-    else body = usp.toString();
-  }
-
-  const fetchFn: typeof fetch = (globalThis as any).fetch;
-  if (typeof fetchFn !== "function") {
-    throw new Error(
-      "No fetch available to call Stripe API; please run on Node 18+ or polyfill fetch"
-    );
-  }
-
-  const resp = await fetchFn(fetchUrl, {
-    method,
-    headers: {
-      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": process.env.STRIPE_API_VERSION || "2024-06-20",
-    },
-    body,
-  });
-
-  const text = await resp.text();
-  let json: any;
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch (e) {
-    throw new Error(`Stripe returned non-JSON response: ${text}`);
-  }
-
-  if (!resp.ok) {
-    const err = json && json.error ? json.error : text;
-    throw new Error(`Stripe API error ${resp.status}: ${JSON.stringify(err)}`);
-  }
-
-  return json;
-}
 
 router.post(
   "/subscribe-to-hobby",
@@ -87,22 +37,10 @@ router.post(
         subscriptionEndDate: null,
       };
 
-      console.log(
-        "Upgrading user to HOBBY tier:",
-        req.user.userId,
-        hobbySubscriptionData
-      );
-
       const updatedUser = await prisma.user.update({
         where: { id: req.user.userId },
         data: hobbySubscriptionData,
       });
-
-      console.log(
-        "Successfully updated user to HOBBY tier:",
-        updatedUser.id,
-        updatedUser.subscriptionTier
-      );
 
       // Generate an API key for the HOBBY tier
       const fullKey = `pk_hobby_${crypto.randomBytes(24).toString("hex")}`;
@@ -244,6 +182,7 @@ router.post(
       }
 
       const upcoming = await stripeRawRequest(
+        stripe,
         "POST",
         "/v1/invoices/create_preview",
         params
@@ -281,7 +220,6 @@ router.post(
   "/perform-upgrade",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    console.log(15);
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
     try {
@@ -321,7 +259,7 @@ router.post(
       if (!currentItem)
         return res.status(400).json({ error: "Subscription has no items" });
 
-      const currentPriceId = (currentItem as any).price?.id;
+      const currentPriceId = currentItem.price?.id;
       if (currentPriceId === priceId) {
         return res.json({ message: "Subscription already on target plan" });
       }
@@ -329,14 +267,14 @@ router.post(
       const updatedSub = await stripe.subscriptions.update(
         user.stripeSubscriptionId as string,
         {
-          items: [{ id: (currentItem as any).id, price: priceId }],
+          items: [{ id: currentItem.id, price: priceId }],
           proration_behavior: "create_prorations",
           expand: ["latest_invoice.payment_intent", "latest_invoice"],
         }
       );
 
       let paidInvoice = null;
-      const latestInvoice = (updatedSub as any).latest_invoice;
+      const latestInvoice = updatedSub.latest_invoice;
       let paidInvoiceLocal = null;
       if (latestInvoice) {
         const invoiceId =
@@ -344,7 +282,11 @@ router.post(
         try {
           paidInvoiceLocal =
             typeof latestInvoice === "string"
-              ? await stripeRawRequest("GET", `/v1/invoices/${invoiceId}`)
+              ? await stripeRawRequest(
+                  stripe,
+                  "GET",
+                  `/v1/invoices/${invoiceId}`
+                )
               : latestInvoice;
         } catch (fetchErr) {
           console.error(
@@ -374,18 +316,8 @@ router.post(
         data: subscriptionUpdateData,
       });
 
-      const tierLimits = {
-        HOBBY: { hour: 100, day: 1000, month: 10000 },
-        DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
-        BUSINESS: { hour: 5000, day: 50000, month: 500000 },
-      };
-      const limits = tierLimits[mappedTier];
-      const permissionsForTier =
-        mappedTier === "BUSINESS"
-          ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
-          : mappedTier === "DEVELOPER"
-            ? ["read:pubs", "location:search"]
-            : ["read:pubs"];
+      const limits = API_KEY_LIMITS_BY_TIER[mappedTier];
+      const permissionsForTier = API_KEY_PERMISSIONS_BY_TIER[mappedTier];
 
       await prisma.apiKey.updateMany({
         where: { userId: req.user.userId, isActive: true },
@@ -460,7 +392,6 @@ router.post(
       const subscription = await stripe.subscriptions.retrieve(
         session.subscription as string
       );
-      console.log(45, subscription);
       const priceId = subscription.items.data[0]?.price.id;
 
       const priceTierMap: {
@@ -481,33 +412,6 @@ router.post(
       subscriptionStatus =
         subscription.status === "active" ? "ACTIVE" : "INCOMPLETE";
 
-      const subscriptionUpdateData = {
-        subscriptionTier,
-        subscriptionStatus,
-        stripeCustomerId: session.customer as string,
-        stripeSubscriptionId: session.subscription as string,
-        subscriptionStartDate: new Date(),
-        subscriptionEndDate: null,
-      };
-
-      console.log(
-        "Updating user subscription for user:",
-        req.user.userId,
-        subscriptionUpdateData
-      );
-
-      const updatedUser = await prisma.user.update({
-        where: { id: req.user.userId },
-        data: subscriptionUpdateData,
-      });
-
-      console.log(
-        "Successfully updated user subscription:",
-        updatedUser.id,
-        updatedUser.subscriptionTier,
-        updatedUser.subscriptionStatus
-      );
-
       const activeKeys = await prisma.apiKey.findMany({
         where: { userId: req.user.userId, isActive: true },
       });
@@ -515,20 +419,8 @@ router.post(
       let apiKey = null;
       let fullApiKey: string | null = null;
 
-      const tierLimits = {
-        HOBBY: { hour: 100, day: 1000, month: 10000 },
-        DEVELOPER: { hour: 1000, day: 10000, month: 100000 },
-        BUSINESS: { hour: 5000, day: 50000, month: 500000 },
-      };
-
-      const limits = tierLimits[subscriptionTier] || tierLimits.HOBBY;
-
-      const permissionsForTier =
-        subscriptionTier === "BUSINESS"
-          ? ["read:pubs", "write:pubs", "read:stats", "location:search"]
-          : subscriptionTier === "DEVELOPER"
-            ? ["read:pubs", "location:search"]
-            : ["read:pubs"];
+      const limits = API_KEY_LIMITS_BY_TIER[subscriptionTier];
+      const permissionsForTier = API_KEY_PERMISSIONS_BY_TIER[subscriptionTier];
 
       if (activeKeys && activeKeys.length > 0) {
         await prisma.apiKey.updateMany({

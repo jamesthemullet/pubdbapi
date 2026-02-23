@@ -1,0 +1,23 @@
+{
+  "extends": ["config:recommended"],
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 10,
+  "timezone": "Europe/London",
+  "schedule": ["every weekday"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch",
+      "minimumReleaseAge": "3 days"
+    }
+  ]
+}
+{
+  "extends": ["config:base"],
+  "automerge": false,
+  "pruneStaleBranches": true,
+  "platform": "github",
+  "labels": ["dependencies"],
+  "schedule": ["before 5am on monday"]
+}
