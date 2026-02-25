@@ -39,7 +39,7 @@
     "zod": "^4.0.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.11",
+    "@biomejs/biome": "2.4.4",
     "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
@@ -47,11 +47,11 @@
     "@types/node": "^24.0.13",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "4.0.18",
-    "nodemon": "3.1.10",
+    "nodemon": "3.1.14",
     "supertest": "^7.2.2",
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
-    "typescript": "5.8.3",
+    "typescript": "5.9.3",
     "vitest": "^4.0.18"
   }
 }
