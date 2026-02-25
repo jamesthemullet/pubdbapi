@@ -13,11 +13,3 @@
     }
   ]
 }
-{
-  "extends": ["config:base"],
-  "automerge": false,
-  "pruneStaleBranches": true,
-  "platform": "github",
-  "labels": ["dependencies"],
-  "schedule": ["before 5am on monday"]
-}
