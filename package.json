@@ -47,6 +47,7 @@
     "@types/node": "^24.0.13",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "4.0.18",
+    "knip": "^5.85.0",
     "nodemon": "3.1.14",
     "supertest": "^7.2.2",
     "ts-node": "10.9.2",

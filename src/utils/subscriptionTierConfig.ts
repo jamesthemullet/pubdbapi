@@ -1,4 +1,4 @@
-export type SubscriptionTier = "HOBBY" | "DEVELOPER" | "BUSINESS";
+type SubscriptionTier = "HOBBY" | "DEVELOPER" | "BUSINESS";
 
 export const API_KEY_LIMITS_BY_TIER: Record<
   SubscriptionTier,
