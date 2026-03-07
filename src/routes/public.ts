@@ -6,118 +6,71 @@ import {
   enforceTierLimits,
   ApiKeyRequest,
 } from "../middleware/apiKeyValidation";
+import {
+  listPubs,
+  getPubById,
+  parsePagination,
+  PubListFilters,
+} from "../queries/pubs";
 
 const router = Router();
 
-// Used on pubs-fe
-// router.get(
-//   "/pubs",
-//   validateApiKey,
-//   enforceTierLimits,
-//   async (req: ApiKeyRequest, res: Response) => {
-//     try {
-//       const {
-//         city,
-//         name,
-//         page = "1",
-//         limit = "50",
-//         operator,
-//         borough,
-//         postcode,
-//         area,
-//         country,
-//       } = req.query;
+router.get(
+  "/pubs",
+  validateApiKey,
+  enforceTierLimits,
+  async (req: ApiKeyRequest, res: Response) => {
+    try {
+      const { city, name, operator, borough, postcode, area, country, page, limit } = req.query;
 
-//       const pageNum = parseInt(page as string);
-//       const limitNum = Math.min(parseInt(limit as string), 100);
+      const filters: PubListFilters = {
+        city: city ? String(city) : undefined,
+        name: name ? String(name) : undefined,
+        operator: operator ? String(operator) : undefined,
+        borough: borough ? String(borough) : undefined,
+        postcode: postcode ? String(postcode) : undefined,
+        area: area ? String(area) : undefined,
+        country: country ? String(country) : undefined,
+      };
 
-//       let where: any = {};
+      const { pageNum, limitNum, skip } = parsePagination(
+        page as string | undefined,
+        limit as string | undefined
+      );
 
-//       if (city) {
-//         where.city = { contains: String(city), mode: "insensitive" };
-//       }
+      const { pubs, total } = await listPubs(filters, { skip, limitNum });
 
-//       if (name) {
-//         where.name = {
-//           contains: String(name),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       if (operator) {
-//         where.operator = {
-//           contains: String(operator),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       if (borough) {
-//         where.borough = {
-//           contains: String(borough),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       if (postcode) {
-//         where.postcode = {
-//           contains: String(postcode),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       if (area) {
-//         where.area = {
-//           contains: String(area),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       if (country) {
-//         where.country = {
-//           contains: String(country),
-//           mode: "insensitive",
-//         };
-//       }
-
-//       const [pubs, total] = await Promise.all([
-//         prisma.pub.findMany({
-//           where,
-//           orderBy: { name: "asc" },
-//         }),
-//         prisma.pub.count({ where }),
-//       ]);
-
-//       res.json({
-//         success: true,
-//         data: pubs,
-//         pagination: {
-//           page: pageNum,
-//           limit: limitNum,
-//           total,
-//           pages: Math.ceil(total / limitNum),
-//           hasNext: pageNum < Math.ceil(total / limitNum),
-//           hasPrev: pageNum > 1,
-//         },
-//         filters: {
-//           city: city || null,
-//           name: name || null,
-//           operator: operator || null,
-//           borough: borough || null,
-//           postcode: postcode || null,
-//           area: area || null,
-//           country: country || null,
-//         },
-//       });
-//     } catch (error) {
-//       console.error("Public API error:", error);
-//       res.status(500).json({
-//         success: false,
-//         error: "Internal server error",
-//         message: "Failed to fetch pubs",
-//       });
-//     }
-//   }
-// );
+      res.json({
+        success: true,
+        data: pubs,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          pages: Math.ceil(total / limitNum),
+          hasNext: pageNum < Math.ceil(total / limitNum),
+          hasPrev: pageNum > 1,
+        },
+        filters: {
+          city: city || null,
+          name: name || null,
+          operator: operator || null,
+          borough: borough || null,
+          postcode: postcode || null,
+          area: area || null,
+          country: country || null,
+        },
+      });
+    } catch (error) {
+      console.error("Public API error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to fetch pubs",
+      });
+    }
+  }
+);
 
 router.get(
   "/pubs/near",
@@ -213,14 +166,7 @@ router.get(
   async (req: ApiKeyRequest, res: Response) => {
     try {
       const { id } = req.params;
-
-      const pub = await prisma.pub.findUnique({
-        where: { id },
-        include: {
-          beerGardens: true,
-          beerTypes: { include: { beerType: true } },
-        },
-      });
+      const pub = await getPubById(id);
 
       if (!pub) {
         return res.status(404).json({

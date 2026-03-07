@@ -16,6 +16,12 @@ import {
   pubSchema,
 } from "../types";
 import { prisma } from "../server";
+import {
+  listPubs,
+  getPubById,
+  parsePagination,
+  PubListFilters,
+} from "../queries/pubs";
 
 const router = Router();
 
@@ -28,75 +34,26 @@ router.get("/", async (req, res) => {
     postcode,
     area,
     country,
-    page = "1",
-    limit = "50",
+    page,
+    limit,
   } = req.query;
-  let where: any = {};
 
-  const parsedPage = Number.parseInt(page as string, 10);
-  const parsedLimit = Number.parseInt(limit as string, 10);
-  const pageNum = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
-  const limitNum =
-    Number.isNaN(parsedLimit) || parsedLimit < 1
-      ? 50
-      : Math.min(parsedLimit, 10000);
-  const skip = (pageNum - 1) * limitNum;
+  const filters: PubListFilters = {
+    city: city ? String(city) : undefined,
+    name: name ? String(name) : undefined,
+    operator: operator ? String(operator) : undefined,
+    borough: borough ? String(borough) : undefined,
+    postcode: postcode ? String(postcode) : undefined,
+    area: area ? String(area) : undefined,
+    country: country ? String(country) : undefined,
+  };
 
-  if (city) {
-    where.city = { equals: String(city), mode: "insensitive" };
-  }
+  const { pageNum, limitNum, skip } = parsePagination(
+    page as string | undefined,
+    limit as string | undefined
+  );
 
-  if (name) {
-    where.name = {
-      contains: String(name),
-      mode: "insensitive",
-    };
-  }
-
-  if (operator) {
-    where.operator = {
-      contains: String(operator),
-      mode: "insensitive",
-    };
-  }
-
-  if (borough) {
-    where.borough = {
-      contains: String(borough),
-      mode: "insensitive",
-    };
-  }
-
-  if (postcode) {
-    where.postcode = {
-      equals: String(postcode),
-      mode: "insensitive",
-    };
-  }
-
-  if (area) {
-    where.area = {
-      equals: String(area),
-      mode: "insensitive",
-    };
-  }
-
-  if (country) {
-    where.country = {
-      equals: String(country),
-      mode: "insensitive",
-    };
-  }
-
-  const [pubs, total] = await Promise.all([
-    prisma.pub.findMany({
-      where,
-      orderBy: { name: "asc" },
-      skip,
-      take: limitNum,
-    }),
-    prisma.pub.count({ where }),
-  ]);
+  const { pubs, total } = await listPubs(filters, { skip, limitNum });
 
   res.json({
     success: true,
@@ -123,10 +80,7 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
-  const pub = await prisma.pub.findUnique({
-    where: { id },
-    include: { beerGardens: true, beerTypes: { include: { beerType: true } } },
-  });
+  const pub = await getPubById(id);
   if (!pub) return res.status(404).json({ message: "Pub not found" });
   res.json(pub);
 });

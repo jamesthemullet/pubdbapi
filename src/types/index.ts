@@ -20,7 +20,7 @@ const normalizeChainName = (value?: string) => {
 
 // Extend Request interface for authenticated requests
 export interface AuthenticatedRequest<
-  P extends Record<string, string> = Record<string, string>
+  P extends Record<string, string> = Record<string, string>,
 > extends Request<P> {
   user?: { userId: string; email: string };
 }
