@@ -10,7 +10,9 @@ import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
-export interface ApiKeyRequest extends Request {
+export interface ApiKeyRequest<
+  P extends Record<string, string> = Record<string, string>
+> extends Request<P> {
   apiKey?: {
     id: string;
     userId: string;
