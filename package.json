@@ -45,7 +45,7 @@
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.13",
-    "@types/supertest": "^6.0.3",
+    "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "4.0.18",
     "knip": "^5.85.0",
     "nodemon": "3.1.14",
