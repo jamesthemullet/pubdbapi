@@ -1,4 +1,8 @@
-import express from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,7 +39,7 @@ vi.mock("../queries/pubs", () => ({
 }));
 
 vi.mock("../middleware/apiKeyValidation", () => ({
-  validateApiKey: vi.fn((req, res, next) => {
+  validateApiKey: vi.fn((req: Request, res: Response, next: NextFunction) => {
     if (testState.auth.mode === "missing") {
       return res.status(401).json({
         success: false,
@@ -53,7 +57,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
       });
     }
 
-    req.apiKey = {
+    (req as Request & { apiKey: unknown }).apiKey = {
       id: "k_1",
       userId: "u_1",
       tier: "DEVELOPER",
@@ -69,7 +73,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
     next();
   }),
   requireTierAccess: vi.fn((requiredFeature: string) => {
-    return (_req, res, next) => {
+    return (_req: Request, res: Response, next: NextFunction) => {
       if (testState.auth.blockedFeatures.has(requiredFeature)) {
         return res.status(403).json({
           success: false,
@@ -82,7 +86,9 @@ vi.mock("../middleware/apiKeyValidation", () => ({
       next();
     };
   }),
-  enforceTierLimits: vi.fn((_req, _res, next) => next()),
+  enforceTierLimits: vi.fn(
+    (_req: Request, _res: Response, next: NextFunction) => next()
+  ),
 }));
 
 let app: express.Express;
