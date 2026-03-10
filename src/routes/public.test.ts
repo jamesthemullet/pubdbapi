@@ -45,7 +45,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
         success: false,
         error: "Unauthorized",
         message:
-          "API key is required.  Include it in the X-API-Key header or api_key query parameter.",
+          "API key is required. Include it in the X-API-Key header or api_key query parameter.",
       });
     }
 
