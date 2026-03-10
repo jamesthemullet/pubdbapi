@@ -886,11 +886,6 @@ arg@^4.1.0:
   resolved "https://registry.yarnpkg.com/arg/-/arg-4.1.3.tgz#269fc7ad5b8e42cb63c896d5666017261c144089"
   integrity sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==
 
-argparse@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/argparse/-/argparse-2.0.1.tgz#246f50f3ca78a3240f6c997e8a9bd1eac49e4b38"
-  integrity sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==
-
 asap@^2.0.0:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/asap/-/asap-2.0.6.tgz#e50347611d7e690943208bbdafebcbc2fb866d46"
@@ -1622,13 +1617,6 @@ js-tokens@^10.0.0:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-10.0.0.tgz#dffe7599b4a8bb7fe30aff8d0235234dffb79831"
   integrity sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==
 
-js-yaml@^4.1.1:
-  version "4.1.1"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.1.1.tgz#854c292467705b699476e1a2decc0c8a3458806b"
-  integrity sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==
-  dependencies:
-    argparse "^2.0.1"
-
 json5@^2.2.2:
   version "2.2.3"
   resolved "https://registry.yarnpkg.com/json5/-/json5-2.2.3.tgz#78cd6f1a19bdc12b73db5ad0c61efd66c1e29283"
@@ -1668,21 +1656,22 @@ jws@^4.0.1:
     safe-buffer "^5.0.1"
 
 knip@^5.85.0:
-  version "5.85.0"
-  resolved "https://registry.yarnpkg.com/knip/-/knip-5.85.0.tgz#b533f251918798aa8cd394aecc0fa37ee5134510"
-  integrity sha512-V2kyON+DZiYdNNdY6GALseiNCwX7dYdpz9Pv85AUn69Gk0UKCts+glOKWfe5KmaMByRjM9q17Mzj/KinTVOyxg==
+  version "5.86.0"
+  resolved "https://registry.yarnpkg.com/knip/-/knip-5.86.0.tgz#7e51e9f675f7ad054ae1181ecfc557bf3df6f2f0"
+  integrity sha512-tGpRCbP+L+VysXnAp1bHTLQ0k/SdC3M3oX18+Cpiqax1qdS25iuCPzpK8LVmAKARZv0Ijri81Wq09Rzk0JTl+Q==
   dependencies:
     "@nodelib/fs.walk" "^1.2.3"
     fast-glob "^3.3.3"
     formatly "^0.3.0"
     jiti "^2.6.0"
-    js-yaml "^4.1.1"
     minimist "^1.2.8"
-    oxc-resolver "^11.15.0"
+    oxc-resolver "^11.19.1"
     picocolors "^1.1.1"
     picomatch "^4.0.1"
     smol-toml "^1.5.2"
     strip-json-comments "5.0.3"
+    unbash "^2.2.0"
+    yaml "^2.8.2"
     zod "^4.1.11"
 
 lodash.includes@^4.3.0:
@@ -1906,7 +1895,7 @@ once@^1.4.0:
   dependencies:
     wrappy "1"
 
-oxc-resolver@^11.15.0:
+oxc-resolver@^11.19.1:
   version "11.19.1"
   resolved "https://registry.yarnpkg.com/oxc-resolver/-/oxc-resolver-11.19.1.tgz#1b6b49812ae3469a2dcd10314444c2cb73a8d6a1"
   integrity sha512-qE/CIg/spwrTBFt5aKmwe3ifeDdLfA2NESN30E42X/lII5ClF8V7Wt6WIJhcGZjp0/Q+nQ+9vgxGk//xZNX2hg==
@@ -2276,9 +2265,9 @@ strip-json-comments@5.0.3:
   integrity sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==
 
 stripe@^20.0.0:
-  version "20.4.0"
-  resolved "https://registry.yarnpkg.com/stripe/-/stripe-20.4.0.tgz#2bc0b2eee24f72243e85c73c8c2cc7ee0a6df108"
-  integrity sha512-F/aN1IQ9vHmlyLNi3DkiIbyzQb6gyBG0uYFd/VrEVQSc9BLtlgknPUx0EvzZdBMRLFuRaPFIFd7Mxwtg7Pbwzw==
+  version "20.4.1"
+  resolved "https://registry.yarnpkg.com/stripe/-/stripe-20.4.1.tgz#547d8a22a97e85a239895f0ffe14de21d96f060a"
+  integrity sha512-axCguHItc8Sxt0HC6aSkdVRPffjYPV7EQqZRb2GkIa8FzWDycE7nHJM19C6xAIynH1Qp1/BHiopSi96jGBxT0w==
 
 superagent@^10.3.0:
   version "10.3.0"
@@ -2413,6 +2402,11 @@ typescript@5.9.3:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.9.3.tgz#5b4f59e15310ab17a216f5d6cf53ee476ede670f"
   integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
 
+unbash@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/unbash/-/unbash-2.2.0.tgz#ab65fcb3903aa5f2bc5ff8f057129ac2dd5bb2db"
+  integrity sha512-X2wH19RAPZE3+ldGicOkoj/SIA83OIxcJ6Cuaw23hf8Xc6fQpvZXY0SftE2JgS0QhYLUG4uwodSI3R53keyh7w==
+
 undefsafe@^2.0.5:
   version "2.0.5"
   resolved "https://registry.yarnpkg.com/undefsafe/-/undefsafe-2.0.5.tgz#38733b9327bdcd226db889fb723a6efd162e6e2c"
@@ -2505,6 +2499,11 @@ wrappy@1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==
+
+yaml@^2.8.2:
+  version "2.8.2"
+  resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.8.2.tgz#5694f25eca0ce9c3e7a9d9e00ce0ddabbd9e35c5"
+  integrity sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==
 
 yn@3.1.1:
   version "3.1.1"
