@@ -4,7 +4,12 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationEmail(to: string, token: string) {
   console.log(10, to, token);
-  const verifyUrl = `http://localhost:4000/auth/verify?token=${token}`;
+  const apiBaseUrl = (
+    process.env.API_BASE_URL ||
+    process.env.BACKEND_URL ||
+    "http://localhost:4000"
+  ).replace(/\/+$/, "");
+  const verifyUrl = `${apiBaseUrl}/auth/verify?token=${token}`;
 
   try {
     await resend.emails.send({
