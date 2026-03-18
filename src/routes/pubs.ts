@@ -204,9 +204,14 @@ router.patch(
         "beerGardens",
         "beerTypes",
       ];
+      const requiredPubFields = ["name", "city", "address", "postcode", "country"];
       const updateData: Record<string, unknown> = { ...parsed.data };
       Object.keys(originalPub).forEach((key) => {
-        if (!systemFields.includes(key) && !(key in parsed.data)) {
+        if (
+          !systemFields.includes(key) &&
+          !requiredPubFields.includes(key) &&
+          !(key in parsed.data)
+        ) {
           updateData[key] = null;
         }
       });
