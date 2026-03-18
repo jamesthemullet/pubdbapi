@@ -6,6 +6,7 @@
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/server.ts\"",
     "build": "tsc && prisma generate",
     "start": "node dist/server.js",
+    "import:pubs": "ts-node scripts/import-pubs.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",

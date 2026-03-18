@@ -13,7 +13,7 @@ model Pub {
   city         String
   address      String
   postcode     String
-  country      String?
+  country      String
   lat          Float?
   lng          Float?
   website      String?

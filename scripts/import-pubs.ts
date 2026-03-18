@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 async function run() {
   const raw = fs.readFileSync(
-    path.join(__dirname, "../export.geojson"),
+    path.join(__dirname, "../export (12).geojson"),
     "utf-8"
   );
   const data = JSON.parse(raw);
@@ -23,6 +23,14 @@ async function run() {
     const street = props["addr:street"] || "";
     const number = props["addr:housenumber"] || "";
     const address = `${number} ${street}`.trim();
+    const countryRaw = props["addr:country"] || props.country || "GB";
+    const normalizedCountry = String(countryRaw).trim().toUpperCase();
+    const country =
+      normalizedCountry === "UK"
+        ? "GB"
+        : /^[A-Z]{2}$/.test(normalizedCountry)
+          ? normalizedCountry
+          : "GB";
     const operator = props.operator || null;
     const openingHours = props["opening_hours"] || null;
 
@@ -39,6 +47,7 @@ async function run() {
           city,
           postcode,
           address,
+          country,
           lat,
           lng,
           website,
