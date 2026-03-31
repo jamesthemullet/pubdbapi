@@ -2,12 +2,12 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import router from "./pubs";
-import { prisma } from "../server";
+import { prisma } from "../prisma";
 import { requireAuth } from "../utils/authCheck";
 import { createAuditLog, getChangedFields } from "../utils/auditLog";
 import { pubBeerTypesPatchSchema } from "../types";
 
-vi.mock("../server", () => ({
+vi.mock("../prisma", () => ({
   prisma: {
     pub: {
       findMany: vi.fn(),

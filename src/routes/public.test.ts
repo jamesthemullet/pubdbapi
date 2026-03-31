@@ -28,7 +28,7 @@ const testState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../server", () => ({
+vi.mock("../prisma", () => ({
   prisma: testState.prisma,
 }));
 
