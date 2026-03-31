@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./prisma";
 
 import authRoutes from "./routes/auth";
 import pubRoutes from "./routes/pubs";
@@ -11,7 +11,7 @@ import paymentsRoutes from "./routes/payments";
 dotenv.config();
 
 const app = express();
-export const prisma = new PrismaClient();
+export { prisma };
 
 app.use(cors());
 

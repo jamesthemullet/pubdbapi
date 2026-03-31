@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { prisma } from "../server";
+import { prisma } from "../prisma";
 import {
   validateApiKey,
   requireTierAccess,

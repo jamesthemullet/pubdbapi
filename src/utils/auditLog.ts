@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../prisma";
 
 type AuditAction = "CREATE" | "UPDATE" | "DELETE";
 type AuditEntity = "Pub" | "User" | "BeerGarden";

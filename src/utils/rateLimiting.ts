@@ -1,6 +1,6 @@
-import { PrismaClient, ApiKeyTier } from "@prisma/client";
+import { ApiKeyTier } from "@prisma/client";
 
-const prisma = new PrismaClient();
+import { prisma } from "../prisma";
 
 export interface TierLimits {
   requestsPerHour: number;
