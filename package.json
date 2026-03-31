@@ -4,13 +4,15 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/server.ts\"",
-    "build": "prisma generate && tsc",
+    "prisma:generate": "prisma generate",
+    "postinstall": "yarn prisma:generate",
+    "build": "yarn prisma:generate && tsc",
     "start": "node dist/server.js",
     "import:pubs": "ts-node scripts/import-pubs.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",
-    "ts-check": "tsc --noEmit",
+    "ts-check": "yarn prisma:generate && tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint:errors": "biome check . | findstr error"
