@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { ApiKeyTier } from "@prisma/client";
+import { ApiKeyTier, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -15,7 +15,7 @@ import {
   resetRequestSchema,
   resetPasswordSchema,
 } from "../types";
-import { prisma } from "../server";
+import { prisma } from "../prisma";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
@@ -234,7 +234,7 @@ router.post("/forgot-api-key", async (req, res) => {
     .toString("hex")}`;
   const keyPrefix = `${fullKey.substring(0, 12)}...`;
   const keyHash = crypto.createHash("sha256").update(fullKey).digest("hex");
-  const apiKey = await prisma.$transaction(async (tx) => {
+  const apiKey = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const createdKey = await tx.apiKey.create({
       data: {
         name: `${tier} API Key`,

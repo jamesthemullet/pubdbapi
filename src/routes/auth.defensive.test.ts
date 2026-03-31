@@ -17,7 +17,7 @@ vi.mock("../utils/sendResetEmail", () => ({
   sendResetEmail: vi.fn(),
 }));
 
-vi.mock("../server", () => ({
+vi.mock("../prisma", () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),

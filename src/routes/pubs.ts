@@ -15,7 +15,7 @@ import {
   pubBeerTypesPatchSchema,
   pubSchema,
 } from "../types";
-import { prisma } from "../server";
+import { prisma } from "../prisma";
 import {
   listPubs,
   getPubById,
@@ -217,7 +217,7 @@ router.patch(
       });
       updateData.id = id;
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.pub.update({
           where: { id },
           data: updateData,

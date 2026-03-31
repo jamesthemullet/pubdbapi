@@ -2,14 +2,14 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import router from "./auth";
-import { prisma } from "../server";
+import { prisma } from "../prisma";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { checkRateLimit } from "../utils/rateLimiting";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-vi.mock("../server", () => ({
+vi.mock("../prisma", () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
@@ -688,11 +688,12 @@ describe("POST /auth/forgot-api-key", () => {
     expect(createdArg.data.requestsPerMonth).toBe(1000);
     expect(createdArg.data.permissions).toEqual(["read:pubs"]);
 
-    const expectedDefaultMonthlyReset = new Date();
-    expectedDefaultMonthlyReset.setMonth(
-      expectedDefaultMonthlyReset.getMonth() + 1
+    const now = new Date();
+    const expectedDefaultMonthlyReset = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1
     );
-    expectedDefaultMonthlyReset.setDate(1);
 
     expect(createdArg.data.monthlyResetDate).toBeInstanceOf(Date);
     expect(createdArg.data.monthlyResetDate.getFullYear()).toBe(

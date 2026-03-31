@@ -8,10 +8,9 @@ import {
 import crypto from "crypto";
 import { authMiddleware } from "../middleware/auth";
 import { AuthenticatedRequest } from "../types";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY environment variable is required");

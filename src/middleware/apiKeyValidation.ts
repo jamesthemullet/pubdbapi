@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PrismaClient, ApiKeyTier } from "@prisma/client";
+import { ApiKeyTier } from "@prisma/client";
 import {
   checkRateLimit,
   recordApiUsage,
@@ -7,8 +7,7 @@ import {
   TierLimits,
 } from "../utils/rateLimiting";
 import crypto from "crypto";
-
-const prisma = new PrismaClient();
+import { prisma } from "../prisma";
 
 export interface ApiKeyRequest<
   P extends Record<string, string> = Record<string, string>,
