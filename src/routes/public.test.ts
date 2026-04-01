@@ -2,6 +2,7 @@ import express, {
   type NextFunction,
   type Request,
   type Response,
+  type Router,
 } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -94,7 +95,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
 let app: express.Express;
 
 beforeAll(async () => {
-  const { default: router } = await import("./public");
+  const { default: router } = (await import("./public.js")) as unknown as { default: Router };
 
   app = express();
   app.use(express.json());

@@ -41,7 +41,7 @@ export const adminMiddleware = async (
 ) => {
   if (!req.user) return res.status(401).json({ error: "Not authenticated" });
 
-  const { prisma } = await import("../server");
+  const { prisma } = await import("../server.js");
   const currentUser = await prisma.user.findUnique({
     where: { id: req.user.userId },
     select: { admin: true },
