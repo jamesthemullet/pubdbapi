@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Router } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -68,7 +68,7 @@ let app: express.Express;
 
 beforeAll(async () => {
   process.env.STRIPE_SECRET_KEY = "sk_test_123";
-  const { default: router } = await import("./payments");
+  const { default: router } = (await import("./payments.js")) as unknown as { default: Router };
 
   app = express();
   app.use(express.json());
