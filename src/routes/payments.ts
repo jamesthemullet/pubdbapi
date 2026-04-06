@@ -16,7 +16,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY environment variable is required");
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new (Stripe as any)(process.env.STRIPE_SECRET_KEY) as Stripe.Stripe;
 
 router.post(
   "/subscribe-to-hobby",

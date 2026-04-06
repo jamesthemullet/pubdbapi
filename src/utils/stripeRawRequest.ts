@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 
 const stripeRawRequest = async (
-  stripe: Stripe,
+  stripe: Stripe.Stripe,
   method: "GET" | "POST",
   path: string,
   params?: Record<string, any>
