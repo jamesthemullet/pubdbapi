@@ -777,7 +777,7 @@ describe("GET /auth/me", () => {
         userId: "missing-user-id",
         email: "missing@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
     mockedUserFindUnique.mockResolvedValueOnce(null);
@@ -799,7 +799,7 @@ describe("GET /auth/me", () => {
         userId: "user_1",
         email: "jane@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
     mockedUserFindUnique.mockResolvedValueOnce({
@@ -851,7 +851,7 @@ describe("GET /auth/dashboard", () => {
         userId: "missing-user-id",
         email: "missing@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
     mockedUserFindUnique.mockResolvedValueOnce(null);
@@ -870,7 +870,7 @@ describe("GET /auth/dashboard", () => {
         userId: "user_1",
         email: "jane@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
 
@@ -883,6 +883,7 @@ describe("GET /auth/dashboard", () => {
       emailVerified: true,
       apiKeys: [
         {
+          id: "api_key_1",
           name: "Developer Key",
           tier: "DEVELOPER",
           keyStatus: "ACTIVE",
@@ -893,7 +894,8 @@ describe("GET /auth/dashboard", () => {
           usageCount: 30,
         },
         {
-          name: "Missing Full Key",
+          id: "api_key_2",
+          name: "Hobby Key",
           tier: "HOBBY",
           keyStatus: "ACTIVE",
           keyPrefix: "pk_hobby_123...",
@@ -905,19 +907,25 @@ describe("GET /auth/dashboard", () => {
       ],
     } as any);
 
-    mockedApiKeyFindFirst
-      .mockResolvedValueOnce({ id: "api_key_1", tier: "DEVELOPER" } as any)
-      .mockResolvedValueOnce(null);
-
-    mockedCheckRateLimit.mockResolvedValueOnce({
-      allowed: true,
-      remaining: { hour: 900, day: 9000, month: 90000 },
-      resetTimes: {
-        hour: new Date("2026-02-20T13:00:00.000Z"),
-        day: new Date("2026-02-21T00:00:00.000Z"),
-        month: new Date("2026-03-01T00:00:00.000Z"),
-      },
-    });
+    mockedCheckRateLimit
+      .mockResolvedValueOnce({
+        allowed: true,
+        remaining: { hour: 900, day: 9000, month: 90000 },
+        resetTimes: {
+          hour: new Date("2026-02-20T13:00:00.000Z"),
+          day: new Date("2026-02-21T00:00:00.000Z"),
+          month: new Date("2026-03-01T00:00:00.000Z"),
+        },
+      })
+      .mockResolvedValueOnce({
+        allowed: true,
+        remaining: { hour: 0, day: 0, month: 0 },
+        resetTimes: {
+          hour: new Date("2026-02-20T13:00:00.000Z"),
+          day: new Date("2026-02-21T00:00:00.000Z"),
+          month: new Date("2026-03-01T00:00:00.000Z"),
+        },
+      });
 
     const response = await request(app)
       .get("/auth/dashboard")
@@ -953,7 +961,7 @@ describe("GET /auth/dashboard", () => {
     });
 
     expect(mockedCheckRateLimit).toHaveBeenCalledWith("api_key_1", "DEVELOPER");
-    expect(mockedApiKeyFindFirst).toHaveBeenCalledTimes(2);
+    expect(mockedCheckRateLimit).toHaveBeenCalledWith("api_key_2", "HOBBY");
   });
 
   it("falls back to zero in summary when usageCount is missing", async () => {
@@ -962,7 +970,7 @@ describe("GET /auth/dashboard", () => {
         userId: "user_1",
         email: "jane@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
 
@@ -975,6 +983,7 @@ describe("GET /auth/dashboard", () => {
       emailVerified: true,
       apiKeys: [
         {
+          id: "api_key_a",
           name: "Missing Usage A",
           tier: "HOBBY",
           keyStatus: "ACTIVE",
@@ -985,6 +994,7 @@ describe("GET /auth/dashboard", () => {
           usageCount: null,
         },
         {
+          id: "api_key_b",
           name: "Missing Usage B",
           tier: "HOBBY",
           keyStatus: "ACTIVE",
@@ -997,7 +1007,11 @@ describe("GET /auth/dashboard", () => {
       ],
     } as any);
 
-    mockedApiKeyFindFirst.mockResolvedValue(null);
+    mockedCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: { hour: 0, day: 0, month: 0 },
+      resetTimes: { hour: new Date(), day: new Date(), month: new Date() },
+    });
 
     const response = await request(app)
       .get("/auth/dashboard")
@@ -1016,7 +1030,7 @@ describe("GET /auth/dashboard", () => {
         userId: "user_1",
         email: "jane@example.com",
       },
-      "supersecret",
+      process.env.JWT_SECRET as string,
       { expiresIn: "1h" }
     );
     mockedUserFindUnique.mockRejectedValueOnce(new Error("db failure"));
