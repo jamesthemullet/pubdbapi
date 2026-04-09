@@ -139,11 +139,9 @@ router.patch(
     const { id } = req.params;
     const { beerGardens, beerTypes, ...pubPayload } = req.body || {};
     const partialPubSchema = pubSchema.partial();
-    console.log(51, req.body);
     const parsed = partialPubSchema.safeParse(pubPayload);
     const beerGardensParsed = beerGardensPatchSchema.safeParse(beerGardens);
     const beerTypesParsed = pubBeerTypesPatchSchema.safeParse(beerTypes);
-    console.log(55, parsed.data);
     if (!parsed.success) {
       return res.status(400).json({ errors: parsed.error.flatten() });
     }
