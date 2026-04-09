@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(yarn ts-check:*)",
-      "Bash(yarn test:*)"
-    ]
-  }
-}
