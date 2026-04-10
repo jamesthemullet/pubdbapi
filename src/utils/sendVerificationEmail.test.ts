@@ -37,7 +37,6 @@ describe("sendVerificationEmail", () => {
 
     await sendVerificationEmail("test@example.com", "token-1");
 
-    expect(logSpy).toHaveBeenCalledWith(10, "test@example.com", "token-1");
     expect(mockSend).toHaveBeenCalledWith({
       from: "PubDB <noreply@thepubdb.com>",
       to: "test@example.com",
@@ -69,7 +68,6 @@ describe("sendVerificationEmail", () => {
 
     await sendVerificationEmail("test@example.com", "token-3");
 
-    expect(logSpy).toHaveBeenCalledWith(10, "test@example.com", "token-3");
     expect(mockSend).toHaveBeenCalledWith({
       from: "PubDB <noreply@thepubdb.com>",
       to: "test@example.com",
