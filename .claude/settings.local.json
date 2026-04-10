@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yarn ts-check:*)",
+      "Bash(yarn test:*)",
+      "Bash(ls -lah /c/Users/james/Documents/GitHub/pub-api/src/routes/*.test.ts)",
+      "Bash(grep -v \"!//\")",
+      "Bash(grep -r \"await.*\\\\\\\\.catch\\\\|catch.*console\" /c/Users/james/Documents/GitHub/pub-api/src --include=\"*.ts\")",
+      "Read(//c/Users/james/.claude/projects/C--Users-james-Documents-GitHub-pub-api/memory//**)",
+      "Read(//c/Users/james/.claude/projects/C--Users-james-Documents-GitHub-pub-api/memory/**)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(yarn tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)"
+    ]
+  }
+}
