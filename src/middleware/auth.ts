@@ -2,7 +2,8 @@ import { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { AuthenticatedRequest } from "../types";
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
 
 export const authMiddleware = (
   req: AuthenticatedRequest,
@@ -21,10 +22,8 @@ export const authMiddleware = (
       "userId" in payload &&
       "email" in payload
     ) {
-      req.user = {
-        userId: (payload as any).userId,
-        email: (payload as any).email,
-      };
+      const { userId, email } = payload as { userId: string; email: string };
+      req.user = { userId, email };
       next();
     } else {
       return res.status(401).json({ error: "Invalid token payload" });

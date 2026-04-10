@@ -18,7 +18,8 @@ import {
 import { prisma } from "../prisma";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
 const DEFAULT_TIER: ApiKeyTier = "HOBBY";
 const PERMISSIONS_BY_TIER: Record<ApiKeyTier, string[]> = {
   HOBBY: ["read:pubs"],
@@ -346,6 +347,7 @@ router.get(
           apiKeys: {
             where: { isActive: true },
             select: {
+              id: true,
               name: true,
               tier: true,
               keyStatus: true,
@@ -363,36 +365,8 @@ router.get(
 
       const apiKeysWithLimits = await Promise.all(
         user.apiKeys.map(async (apiKey) => {
-          const fullApiKey = await prisma.apiKey.findFirst({
-            where: {
-              keyPrefix: apiKey.keyPrefix,
-              userId: user.id,
-              isActive: true,
-            },
-          });
-
-          if (!fullApiKey) {
-            return {
-              ...apiKey,
-              remaining: { hour: 0, day: 0, month: 0 },
-              limits: {
-                requestsPerHour: 0,
-                requestsPerDay: 0,
-                requestsPerMonth: 0,
-              },
-              resetTimes: {
-                hour: new Date(),
-                day: new Date(),
-                month: new Date(),
-              },
-            };
-          }
-
-          const rateLimitInfo = await checkRateLimit(
-            fullApiKey.id,
-            fullApiKey.tier
-          );
-          const tierLimits = TIER_LIMITS[fullApiKey.tier];
+          const rateLimitInfo = await checkRateLimit(apiKey.id, apiKey.tier);
+          const tierLimits = TIER_LIMITS[apiKey.tier];
 
           return {
             name: apiKey.name,

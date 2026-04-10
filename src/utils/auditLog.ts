@@ -43,7 +43,6 @@ export const getClientInfo = (req: any) => {
 
 // Helper function to compare objects and get only changed fields
 export const getChangedFields = (oldObj: any, newObj: any) => {
-  const changes: any = {};
   const oldValues: any = {};
   const newValues: any = {};
 
