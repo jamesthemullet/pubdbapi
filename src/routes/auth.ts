@@ -8,6 +8,7 @@ import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { authMiddleware } from "../middleware/auth";
 import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
+import { API_KEY_PERMISSIONS_BY_TIER } from "../utils/subscriptionTierConfig";
 import {
   AuthenticatedRequest,
   registerSchema,
@@ -20,11 +21,6 @@ import { prisma } from "../prisma";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const DEFAULT_TIER: ApiKeyTier = "HOBBY";
-const PERMISSIONS_BY_TIER: Record<ApiKeyTier, string[]> = {
-  HOBBY: ["read:pubs"],
-  DEVELOPER: ["read:pubs", "location:search"],
-  BUSINESS: ["read:pubs", "write:pubs", "read:stats", "location:search"],
-};
 
 router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
@@ -227,7 +223,7 @@ router.post("/forgot-api-key", async (req, res) => {
   const tier = (user.subscriptionTier || DEFAULT_TIER) as ApiKeyTier;
   const tierLimits = TIER_LIMITS[tier] || TIER_LIMITS[DEFAULT_TIER];
   const permissions =
-    PERMISSIONS_BY_TIER[tier] || PERMISSIONS_BY_TIER[DEFAULT_TIER];
+    API_KEY_PERMISSIONS_BY_TIER[tier] || API_KEY_PERMISSIONS_BY_TIER[DEFAULT_TIER];
 
   const fullKey = `pk_${tier.toLowerCase()}_${crypto
     .randomBytes(24)

@@ -4,6 +4,7 @@ import stripeRawRequest from "../utils/stripeRawRequest";
 import {
   API_KEY_LIMITS_BY_TIER,
   API_KEY_PERMISSIONS_BY_TIER,
+  PRICE_TIER_MAP,
 } from "../utils/subscriptionTierConfig";
 import crypto from "crypto";
 import { authMiddleware } from "../middleware/auth";
@@ -103,12 +104,7 @@ router.post(
         return res.status(400).json({ error: "priceId is required" });
       }
 
-      const priceTierMap: { [key: string]: "DEVELOPER" | "BUSINESS" } = {
-        price_1S6cBZ0k31jD9MVaQH1JSrAl: "DEVELOPER",
-        price_1S6cBq0k31jD9MVaRYKvxRek: "BUSINESS",
-      };
-
-      if (!priceTierMap[priceId]) {
+      if (!PRICE_TIER_MAP[priceId]) {
         return res.status(400).json({
           error: "Invalid price ID. Use /subscribe-to-hobby for free tier.",
         });
@@ -224,12 +220,7 @@ router.post(
       if (!priceId)
         return res.status(400).json({ error: "priceId is required" });
 
-      const priceTierMap: { [key: string]: "DEVELOPER" | "BUSINESS" } = {
-        price_1S6cBZ0k31jD9MVaQH1JSrAl: "DEVELOPER",
-        price_1S6cBq0k31jD9MVaRYKvxRek: "BUSINESS",
-      };
-
-      const mappedTier = priceTierMap[priceId];
+      const mappedTier = PRICE_TIER_MAP[priceId];
       if (!mappedTier) {
         return res.status(400).json({ error: "Unknown price ID" });
       }
@@ -391,14 +382,7 @@ router.post(
       );
       const priceId = subscription.items.data[0]?.price.id;
 
-      const priceTierMap: {
-        [key: string]: "DEVELOPER" | "BUSINESS";
-      } = {
-        price_1S6cBZ0k31jD9MVaQH1JSrAl: "DEVELOPER",
-        price_1S6cBq0k31jD9MVaRYKvxRek: "BUSINESS",
-      };
-
-      const mappedTier = priceTierMap[priceId];
+      const mappedTier = PRICE_TIER_MAP[priceId];
       if (!mappedTier) {
         return res.status(400).json({
           error: "Unknown price ID. Unable to determine subscription tier.",
