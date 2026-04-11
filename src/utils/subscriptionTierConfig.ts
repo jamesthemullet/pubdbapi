@@ -1,4 +1,9 @@
-type SubscriptionTier = "HOBBY" | "DEVELOPER" | "BUSINESS";
+export type SubscriptionTier = "HOBBY" | "DEVELOPER" | "BUSINESS";
+
+export const PRICE_TIER_MAP: Record<string, "DEVELOPER" | "BUSINESS"> = {
+  price_1S6cBZ0k31jD9MVaQH1JSrAl: "DEVELOPER",
+  price_1S6cBq0k31jD9MVaRYKvxRek: "BUSINESS",
+};
 
 export const API_KEY_LIMITS_BY_TIER: Record<
   SubscriptionTier,

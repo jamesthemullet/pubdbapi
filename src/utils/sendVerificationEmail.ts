@@ -3,7 +3,6 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationEmail(to: string, token: string) {
-  console.log(10, to, token);
   const apiBaseUrl = (
     process.env.API_BASE_URL ||
     process.env.BACKEND_URL ||
