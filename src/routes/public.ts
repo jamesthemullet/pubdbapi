@@ -21,7 +21,17 @@ router.get(
   enforceTierLimits,
   async (req: ApiKeyRequest, res: Response) => {
     try {
-      const { city, name, operator, borough, postcode, area, country, page, limit } = req.query;
+      const {
+        city,
+        name,
+        operator,
+        borough,
+        postcode,
+        area,
+        country,
+        page,
+        limit,
+      } = req.query;
 
       const filters: PubListFilters = {
         city: city ? String(city) : undefined,
