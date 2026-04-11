@@ -10,7 +10,7 @@ import crypto from "crypto";
 import { prisma } from "../prisma";
 
 export interface ApiKeyRequest<
-  P extends Record<string, string> = Record<string, string>,
+  P extends Record<string, string> = Record<string, string>
 > extends Request<P> {
   apiKey?: {
     id: string;

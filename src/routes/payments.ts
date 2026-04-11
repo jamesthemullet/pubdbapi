@@ -17,7 +17,9 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY environment variable is required");
 }
 
-const stripe = new (Stripe as any)(process.env.STRIPE_SECRET_KEY) as Stripe.Stripe;
+const stripe = new (Stripe as any)(
+  process.env.STRIPE_SECRET_KEY
+) as Stripe.Stripe;
 
 router.post(
   "/subscribe-to-hobby",
@@ -65,7 +67,9 @@ router.post(
         },
       });
 
-      const url = `${process.env.FRONTEND_URL || "http://localhost:3000"}/hobby-success`;
+      const url = `${
+        process.env.FRONTEND_URL || "http://localhost:3000"
+      }/hobby-success`;
 
       res.json({
         success: true,
@@ -114,7 +118,9 @@ router.post(
         mode: "subscription",
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/success?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/`,
         customer_email: req.user.email,
         metadata: {
@@ -422,7 +428,9 @@ router.post(
           orderBy: { createdAt: "desc" },
         });
       } else {
-        const fullKey = `pk_${subscriptionTier.toLowerCase()}_${crypto.randomBytes(24).toString("hex")}`;
+        const fullKey = `pk_${subscriptionTier.toLowerCase()}_${crypto
+          .randomBytes(24)
+          .toString("hex")}`;
         const keyPrefix = fullKey.substring(0, 12) + "...";
         const keyHash = crypto
           .createHash("sha256")
