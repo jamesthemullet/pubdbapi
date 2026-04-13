@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dotenv from "dotenv";
 import { prisma } from "./prisma";
 
@@ -13,6 +14,7 @@ dotenv.config();
 const app = express();
 export { prisma };
 
+app.use(helmet());
 app.use(cors());
 
 app.use(express.json());
