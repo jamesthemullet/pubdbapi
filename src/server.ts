@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
@@ -14,6 +15,7 @@ dotenv.config();
 const app = express();
 export { prisma };
 
+app.use(compression());
 app.use(helmet());
 app.use(cors());
 
