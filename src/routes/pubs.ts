@@ -187,8 +187,8 @@ router.patch(
       const originalPub = await prisma.pub.findUnique({
         where: { id },
         include: {
-          beerGardens: true,
-          beerTypes: { include: { beerType: true } },
+          beerGardens: { select: { id: true } },
+          beerTypes: { select: { beerTypeId: true } },
         },
       });
       if (!originalPub) {
