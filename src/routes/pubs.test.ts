@@ -493,8 +493,8 @@ describe("PATCH /pubs/:id", () => {
     expect(mockedFindUnique).toHaveBeenCalledWith({
       where: { id: "missing" },
       include: {
-        beerGardens: true,
-        beerTypes: { include: { beerType: true } },
+        beerGardens: { select: { id: true } },
+        beerTypes: { select: { beerTypeId: true } },
       },
     });
     expect(mockedTransaction).not.toHaveBeenCalled();
@@ -510,8 +510,8 @@ describe("PATCH /pubs/:id", () => {
     expect(mockedFindUnique).toHaveBeenCalledWith({
       where: { id: "missing" },
       include: {
-        beerGardens: true,
-        beerTypes: { include: { beerType: true } },
+        beerGardens: { select: { id: true } },
+        beerTypes: { select: { beerTypeId: true } },
       },
     });
   });
@@ -656,8 +656,8 @@ describe("PATCH /pubs/:id", () => {
       updatedAt: new Date().toISOString(),
       beerGardens: [{ id: "bg_keep" }, { id: "bg_remove" }],
       beerTypes: [
-        { beerTypeId: "bt_keep", beerType: { id: "bt_keep" } },
-        { beerTypeId: "bt_remove", beerType: { id: "bt_remove" } },
+        { beerTypeId: "bt_keep" },
+        { beerTypeId: "bt_remove" },
       ],
     } as any;
 
