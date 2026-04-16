@@ -95,7 +95,9 @@ vi.mock("../middleware/apiKeyValidation", () => ({
 let app: express.Express;
 
 beforeAll(async () => {
-  const { default: router } = (await import("./public.js")) as unknown as { default: Router };
+  const { default: router } = (await import("./public.js")) as unknown as {
+    default: Router;
+  };
 
   app = express();
   app.use(express.json());
@@ -302,14 +304,10 @@ describe("GET /api/v1/pubs/near", () => {
   });
 
   it("applies the user limit after the radius filter, not before", async () => {
-    // 3 pubs all within radius — with the old code, take:1 at the DB level would
-    // have returned only 1 pub (sorted by name) before the distance filter ran.
-    // With the fix, all 3 are fetched from the bounding box and the limit of 1
-    // is applied after sorting by distance, so we get the closest one.
     mockedPubFindMany.mockResolvedValueOnce([
-      { id: "mid",   name: "Mid",   lat: 51.505366, lng: -0.14189 },
+      { id: "mid", name: "Mid", lat: 51.505366, lng: -0.14189 },
       { id: "close", name: "Close", lat: 51.501366, lng: -0.14189 },
-      { id: "far",   name: "Far",   lat: 51.511366, lng: -0.14189 },
+      { id: "far", name: "Far", lat: 51.511366, lng: -0.14189 },
     ] as any);
 
     const response = await request(app).get(
