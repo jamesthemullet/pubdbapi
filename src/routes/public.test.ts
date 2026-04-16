@@ -67,7 +67,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
         requestsPerHour: 1000,
         requestsPerDay: 10000,
         requestsPerMonth: 100000,
-        maxResultsPerRequest: 100,
+        maxResults: 100,
         allowLocationSearch: true,
         allowStats: true,
       },
@@ -88,9 +88,6 @@ vi.mock("../middleware/apiKeyValidation", () => ({
       next();
     };
   }),
-  enforceTierLimits: vi.fn(
-    (_req: Request, _res: Response, next: NextFunction) => next()
-  ),
 }));
 
 let app: express.Express;
@@ -148,7 +145,7 @@ describe("GET /api/v1/pubs", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mockedParsePagination).toHaveBeenCalledWith("2", "10");
+    expect(mockedParsePagination).toHaveBeenCalledWith("2", "10", 100);
     expect(mockedListPubs).toHaveBeenCalledWith(
       {
         city: "London",
