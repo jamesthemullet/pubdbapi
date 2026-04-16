@@ -6,7 +6,7 @@ import { prisma } from "../prisma";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { batchCheckRateLimits } from "../utils/rateLimiting";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 vi.mock("../prisma", () => ({
