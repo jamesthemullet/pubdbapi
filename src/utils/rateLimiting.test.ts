@@ -3,12 +3,10 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 const {
   mockApiKeyFindUnique,
   mockApiKeyUpdate,
-  mockApiKeyUsageCount,
   mockApiKeyUsageCreate,
 } = vi.hoisted(() => ({
   mockApiKeyFindUnique: vi.fn(),
   mockApiKeyUpdate: vi.fn(),
-  mockApiKeyUsageCount: vi.fn(),
   mockApiKeyUsageCreate: vi.fn(),
 }));
 
@@ -20,7 +18,6 @@ vi.mock("@prisma/client", () => {
         update: mockApiKeyUpdate,
       };
       apiKeyUsage = {
-        count: mockApiKeyUsageCount,
         create: mockApiKeyUsageCreate,
       };
     },
@@ -54,17 +51,19 @@ describe("rateLimiting utils", () => {
 
       expect(result.allowed).toBe(false);
       expect(result.remaining).toEqual({ hour: 0, day: 0, month: 0 });
-      expect(mockApiKeyUsageCount).not.toHaveBeenCalled();
     });
 
     it("calculates remaining limits and allows request when under limits", async () => {
+      // System time: 2026-03-06T10:15:30Z
+      // Reset dates in future → no resets needed
       mockApiKeyFindUnique.mockResolvedValueOnce({
+        currentHourUsage: 3,
+        hourlyResetDate: new Date("2026-03-06T11:00:00.000Z"),
+        currentDayUsage: 20,
+        dailyResetDate: new Date("2026-03-07T00:00:00.000Z"),
         currentMonthUsage: 100,
         monthlyResetDate: new Date("2026-04-01T00:00:00.000Z"),
       });
-      mockApiKeyUsageCount
-        .mockResolvedValueOnce(3) // hour
-        .mockResolvedValueOnce(20); // day
 
       const result = await checkRateLimit("key_1", "HOBBY" as any);
 
@@ -81,18 +80,19 @@ describe("rateLimiting utils", () => {
     });
 
     it("resets monthly usage when reset date has passed", async () => {
-      const expectedNextReset = new Date("2026-03-06T10:15:30.000Z");
-      expectedNextReset.setMonth(expectedNextReset.getMonth() + 1);
-      expectedNextReset.setDate(1);
-      expectedNextReset.setHours(0, 0, 0, 0);
+      const expectedNextMonthReset = new Date("2026-03-06T10:15:30.000Z");
+      expectedNextMonthReset.setMonth(expectedNextMonthReset.getMonth() + 1);
+      expectedNextMonthReset.setDate(1);
+      expectedNextMonthReset.setHours(0, 0, 0, 0);
 
       mockApiKeyFindUnique.mockResolvedValueOnce({
+        currentHourUsage: 1,
+        hourlyResetDate: new Date("2026-03-06T11:00:00.000Z"),
+        currentDayUsage: 2,
+        dailyResetDate: new Date("2026-03-07T00:00:00.000Z"),
         currentMonthUsage: 999,
-        monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"),
+        monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"), // past
       });
-      mockApiKeyUsageCount
-        .mockResolvedValueOnce(1) // hour
-        .mockResolvedValueOnce(2); // day
 
       await checkRateLimit("key_2", "DEVELOPER" as any);
 
@@ -100,27 +100,28 @@ describe("rateLimiting utils", () => {
         where: { id: "key_2" },
         data: {
           currentMonthUsage: 0,
-          monthlyResetDate: expectedNextReset,
+          monthlyResetDate: expectedNextMonthReset,
         },
       });
     });
 
-    it("denies request when any period is exhausted", async () => {
+    it("denies request when hourly limit is exhausted", async () => {
       mockApiKeyFindUnique.mockResolvedValueOnce({
-        currentMonthUsage: 1000,
+        currentHourUsage: 20, // HOBBY limit maxed
+        hourlyResetDate: new Date("2026-03-06T11:00:00.000Z"),
+        currentDayUsage: 1,
+        dailyResetDate: new Date("2026-03-07T00:00:00.000Z"),
+        currentMonthUsage: 1,
         monthlyResetDate: new Date("2026-04-01T00:00:00.000Z"),
       });
-      mockApiKeyUsageCount
-        .mockResolvedValueOnce(20) // hour maxed
-        .mockResolvedValueOnce(199); // day still available
 
       const result = await checkRateLimit("key_3", "HOBBY" as any);
 
       expect(result.allowed).toBe(false);
       expect(result.remaining).toEqual({
         hour: 0,
-        day: 1,
-        month: 0,
+        day: 199,
+        month: 999,
       });
     });
   });
@@ -156,6 +157,8 @@ describe("rateLimiting utils", () => {
         where: { id: "key_1" },
         data: {
           usageCount: { increment: 1 },
+          currentHourUsage: { increment: 1 },
+          currentDayUsage: { increment: 1 },
           currentMonthUsage: { increment: 1 },
           lastUsed: expect.any(Date),
         },
