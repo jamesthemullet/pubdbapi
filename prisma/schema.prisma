@@ -39,6 +39,13 @@ model Pub {
   openingHours Json?
   beerGardens  BeerGarden[]
   beerTypes    PubBeerType[]
+
+  @@index([city])
+  @@index([operator])
+  @@index([borough])
+  @@index([area])
+  @@index([postcode])
+  @@index([country])
 }
 
 model BeerType {

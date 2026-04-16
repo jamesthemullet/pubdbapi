@@ -12,6 +12,10 @@ import {
   parsePagination,
   PubListFilters,
 } from "../queries/pubs";
+import { getFromCache, setInCache } from "../utils/cache";
+
+const CACHE_KEY_STATS = "stats";
+const CACHE_KEY_FILTERS = "filters";
 
 const router = Router();
 
@@ -114,6 +118,10 @@ router.get(
       const latDelta = radiusKm / 111;
       const lngDelta = radiusKm / (111 * Math.cos((latitude * Math.PI) / 180));
 
+      // Fetch all pubs in the bounding box (square). The limit is applied after
+      // the circular radius filter below, so we must not cap here prematurely.
+      // An internal ceiling prevents pathological over-fetching.
+      const BOUNDING_BOX_CAP = 500;
       const pubs = await prisma.pub.findMany({
         where: {
           lat: {
@@ -125,8 +133,7 @@ router.get(
             lte: longitude + lngDelta,
           },
         },
-        take: limitNum,
-        orderBy: { name: "asc" },
+        take: BOUNDING_BOX_CAP,
       });
 
       const pubsWithDistance = pubs
@@ -148,7 +155,8 @@ router.get(
           (pub): pub is NonNullable<typeof pub> =>
             pub !== null && pub.distance <= radiusKm
         )
-        .sort((a, b) => a.distance - b.distance);
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, limitNum);
 
       res.json({
         success: true,
@@ -207,6 +215,11 @@ router.get(
   requireTierAccess("allowStats"),
   async (req: ApiKeyRequest, res: Response) => {
     try {
+      const cached = getFromCache(CACHE_KEY_STATS);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const [totalPubs, citiesCount, operatorsCount, boroughsCount] =
         await Promise.all([
           prisma.pub.count(),
@@ -227,7 +240,7 @@ router.get(
           }),
         ]);
 
-      res.json({
+      const result = {
         success: true,
         data: {
           overview: {
@@ -258,7 +271,10 @@ router.get(
               count: borough._count.borough,
             })),
         },
-      });
+      };
+
+      setInCache(CACHE_KEY_STATS, result);
+      res.json(result);
     } catch (error) {
       console.error("Public API error:", error);
       res.status(500).json({
@@ -275,6 +291,11 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
+      const cached = getFromCache(CACHE_KEY_FILTERS);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const [cities, operators, boroughs, areas] = await Promise.all([
         prisma.pub.findMany({
           select: { city: true },
@@ -302,7 +323,7 @@ router.get(
         }),
       ]);
 
-      res.json({
+      const result = {
         success: true,
         data: {
           cities: cities.map((c) => c.city).filter(Boolean),
@@ -310,7 +331,10 @@ router.get(
           boroughs: boroughs.map((b) => b.borough).filter(Boolean),
           areas: areas.map((a) => a.area).filter(Boolean),
         },
-      });
+      };
+
+      setInCache(CACHE_KEY_FILTERS, result);
+      res.json(result);
     } catch (error) {
       console.error("Public API error:", error);
       res.status(500).json({

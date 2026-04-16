@@ -8,10 +8,10 @@ CREATE INDEX "Pub_operator_idx" ON "Pub"("operator");
 CREATE INDEX "Pub_borough_idx" ON "Pub"("borough");
 
 -- CreateIndex
-CREATE INDEX "Pub_postcode_idx" ON "Pub"("postcode");
+CREATE INDEX "Pub_area_idx" ON "Pub"("area");
 
 -- CreateIndex
-CREATE INDEX "Pub_area_idx" ON "Pub"("area");
+CREATE INDEX "Pub_postcode_idx" ON "Pub"("postcode");
 
 -- CreateIndex
 CREATE INDEX "Pub_country_idx" ON "Pub"("country");

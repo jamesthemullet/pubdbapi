@@ -123,6 +123,88 @@ export async function checkRateLimit(
   return { allowed, remaining, resetTimes };
 }
 
+export async function batchCheckRateLimits(
+  apiKeys: Array<{ id: string; tier: ApiKeyTier; currentMonthUsage: number; monthlyResetDate: Date }>
+): Promise<Map<string, {
+  allowed: boolean;
+  remaining: { hour: number; day: number; month: number };
+  resetTimes: { hour: Date; day: Date; month: Date };
+}>> {
+  if (apiKeys.length === 0) {
+    return new Map();
+  }
+
+  const now = new Date();
+  const keyIds = apiKeys.map((k) => k.id);
+
+  const hourStart = new Date(now);
+  hourStart.setMinutes(0, 0, 0);
+
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+
+  const [hourlyCounts, dailyCounts] = await Promise.all([
+    prisma.apiKeyUsage.groupBy({
+      by: ["apiKeyId"],
+      where: { apiKeyId: { in: keyIds }, timestamp: { gte: hourStart } },
+      _count: { apiKeyId: true },
+    }),
+    prisma.apiKeyUsage.groupBy({
+      by: ["apiKeyId"],
+      where: { apiKeyId: { in: keyIds }, timestamp: { gte: dayStart } },
+      _count: { apiKeyId: true },
+    }),
+  ]);
+
+  const hourlyMap = new Map(hourlyCounts.map((r) => [r.apiKeyId, r._count.apiKeyId]));
+  const dailyMap = new Map(dailyCounts.map((r) => [r.apiKeyId, r._count.apiKeyId]));
+
+  const keysNeedingReset = apiKeys.filter((k) => now > k.monthlyResetDate);
+  if (keysNeedingReset.length > 0) {
+    const nextReset = new Date(now);
+    nextReset.setMonth(nextReset.getMonth() + 1);
+    nextReset.setDate(1);
+    nextReset.setHours(0, 0, 0, 0);
+
+    await prisma.apiKey.updateMany({
+      where: { id: { in: keysNeedingReset.map((k) => k.id) } },
+      data: { currentMonthUsage: 0, monthlyResetDate: nextReset },
+    });
+  }
+
+  const resetKeyIds = new Set(keysNeedingReset.map((k) => k.id));
+  const result = new Map<string, {
+    allowed: boolean;
+    remaining: { hour: number; day: number; month: number };
+    resetTimes: { hour: Date; day: Date; month: Date };
+  }>();
+
+  for (const key of apiKeys) {
+    const limits = TIER_LIMITS[key.tier];
+    const hourlyUsage = hourlyMap.get(key.id) ?? 0;
+    const dailyUsage = dailyMap.get(key.id) ?? 0;
+    const currentMonthUsage = resetKeyIds.has(key.id) ? 0 : key.currentMonthUsage;
+
+    const remaining = {
+      hour: Math.max(0, limits.requestsPerHour - hourlyUsage),
+      day: Math.max(0, limits.requestsPerDay - dailyUsage),
+      month: Math.max(0, limits.requestsPerMonth - currentMonthUsage),
+    };
+
+    result.set(key.id, {
+      allowed: remaining.hour > 0 && remaining.day > 0 && remaining.month > 0,
+      remaining,
+      resetTimes: {
+        hour: new Date(hourStart.getTime() + 60 * 60 * 1000),
+        day: new Date(dayStart.getTime() + 24 * 60 * 60 * 1000),
+        month: key.monthlyResetDate,
+      },
+    });
+  }
+
+  return result;
+}
+
 export async function recordApiUsage(
   apiKeyId: string,
   endpoint: string,
