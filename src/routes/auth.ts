@@ -7,7 +7,7 @@ import { addHours } from "date-fns";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { authMiddleware } from "../middleware/auth";
-import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
+import { batchCheckRateLimits, TIER_LIMITS } from "../utils/rateLimiting";
 import { API_KEY_PERMISSIONS_BY_TIER } from "../utils/subscriptionTierConfig";
 import {
   AuthenticatedRequest,
@@ -352,6 +352,8 @@ router.get(
               createdAt: true,
               lastUsed: true,
               usageCount: true,
+              currentMonthUsage: true,
+              monthlyResetDate: true,
             },
           },
         },
@@ -359,34 +361,38 @@ router.get(
 
       if (!user) return res.status(404).json({ error: "User not found" });
 
-      const apiKeysWithLimits = await Promise.all(
-        user.apiKeys.map(async (apiKey) => {
-          const rateLimitInfo = await checkRateLimit(apiKey.id, apiKey.tier);
-          const tierLimits = TIER_LIMITS[apiKey.tier];
+      const rateLimitMap = await batchCheckRateLimits(user.apiKeys);
 
-          return {
-            name: apiKey.name,
-            tier: apiKey.tier,
-            keyStatus: apiKey.keyStatus,
-            keyPrefix: apiKey.keyPrefix,
-            isActive: apiKey.isActive,
-            createdAt: apiKey.createdAt,
-            lastUsed: apiKey.lastUsed,
-            usageCount: apiKey.usageCount,
-            remaining: rateLimitInfo.remaining,
-            limits: {
-              requestsPerHour: tierLimits.requestsPerHour,
-              requestsPerDay: tierLimits.requestsPerDay,
-              requestsPerMonth: tierLimits.requestsPerMonth,
-            },
-            resetTimes: rateLimitInfo.resetTimes,
-            features: {
-              allowLocationSearch: tierLimits.allowLocationSearch,
-              allowStats: tierLimits.allowStats,
-            },
-          };
-        })
-      );
+      const apiKeysWithLimits = user.apiKeys.map((apiKey) => {
+        const rateLimitInfo = rateLimitMap.get(apiKey.id) ?? {
+          allowed: false,
+          remaining: { hour: 0, day: 0, month: 0 },
+          resetTimes: { hour: new Date(), day: new Date(), month: new Date() },
+        };
+        const tierLimits = TIER_LIMITS[apiKey.tier];
+
+        return {
+          name: apiKey.name,
+          tier: apiKey.tier,
+          keyStatus: apiKey.keyStatus,
+          keyPrefix: apiKey.keyPrefix,
+          isActive: apiKey.isActive,
+          createdAt: apiKey.createdAt,
+          lastUsed: apiKey.lastUsed,
+          usageCount: apiKey.usageCount,
+          remaining: rateLimitInfo.remaining,
+          limits: {
+            requestsPerHour: tierLimits.requestsPerHour,
+            requestsPerDay: tierLimits.requestsPerDay,
+            requestsPerMonth: tierLimits.requestsPerMonth,
+          },
+          resetTimes: rateLimitInfo.resetTimes,
+          features: {
+            allowLocationSearch: tierLimits.allowLocationSearch,
+            allowStats: tierLimits.allowStats,
+          },
+        };
+      });
 
       res.json({
         user: {
