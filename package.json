@@ -7,7 +7,7 @@
     "prisma:generate": "prisma generate",
     "postinstall": "yarn prisma:generate",
     "build": "yarn prisma:generate && tsc",
-    "start": "node dist/server.js",
+    "start": "prisma migrate deploy && node dist/server.js",
     "import:pubs": "ts-node scripts/import-pubs.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
