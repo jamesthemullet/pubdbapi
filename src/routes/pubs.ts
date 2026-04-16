@@ -118,7 +118,7 @@ router.post(
     const pub = await prisma.pub.create({ data: createData });
 
     const clientInfo = getClientInfo(req);
-    await createAuditLog({
+    createAuditLog({
       action: "CREATE",
       entity: "Pub",
       entityId: pub.id,
@@ -334,7 +334,7 @@ router.patch(
       );
       const clientInfo = getClientInfo(req);
 
-      await createAuditLog({
+      createAuditLog({
         action: "UPDATE",
         entity: "Pub",
         entityId: id,
@@ -380,7 +380,7 @@ router.delete(
 
       const clientInfo = getClientInfo(req);
 
-      await createAuditLog({
+      createAuditLog({
         action: "DELETE",
         entity: "Pub",
         entityId: id,

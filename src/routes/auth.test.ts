@@ -5,7 +5,7 @@ import router from "./auth";
 import { prisma } from "../prisma";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
-import { checkRateLimit } from "../utils/rateLimiting";
+import { batchCheckRateLimits } from "../utils/rateLimiting";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -39,7 +39,7 @@ vi.mock("../utils/sendResetEmail", () => ({
 }));
 
 vi.mock("../utils/rateLimiting", () => ({
-  checkRateLimit: vi.fn(),
+  batchCheckRateLimits: vi.fn(),
   TIER_LIMITS: {
     HOBBY: {
       requestsPerHour: 20,
@@ -97,7 +97,7 @@ const mockedApiKeyFindFirst = prisma.apiKey.findFirst as unknown as ReturnType<
 const mockedTransaction = prisma.$transaction as unknown as ReturnType<
   typeof vi.fn
 >;
-const mockedCheckRateLimit = checkRateLimit as unknown as ReturnType<
+const mockedBatchCheckRateLimits = batchCheckRateLimits as unknown as ReturnType<
   typeof vi.fn
 >;
 const mockedSendVerificationEmail =
@@ -834,7 +834,7 @@ describe("GET /auth/dashboard", () => {
   beforeEach(() => {
     mockedUserFindUnique.mockReset();
     mockedApiKeyFindFirst.mockReset();
-    mockedCheckRateLimit.mockReset();
+    mockedBatchCheckRateLimits.mockReset();
   });
 
   it("returns 401 when token is missing", async () => {
@@ -892,6 +892,8 @@ describe("GET /auth/dashboard", () => {
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
           lastUsed: new Date("2026-02-01T00:00:00.000Z"),
           usageCount: 30,
+          currentMonthUsage: 500,
+          monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"),
         },
         {
           id: "api_key_2",
@@ -903,12 +905,14 @@ describe("GET /auth/dashboard", () => {
           createdAt: new Date("2026-01-02T00:00:00.000Z"),
           lastUsed: null,
           usageCount: 5,
+          currentMonthUsage: 5,
+          monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"),
         },
       ],
     } as any);
 
-    mockedCheckRateLimit
-      .mockResolvedValueOnce({
+    mockedBatchCheckRateLimits.mockResolvedValueOnce(new Map([
+      ["api_key_1", {
         allowed: true,
         remaining: { hour: 900, day: 9000, month: 90000 },
         resetTimes: {
@@ -916,8 +920,8 @@ describe("GET /auth/dashboard", () => {
           day: new Date("2026-02-21T00:00:00.000Z"),
           month: new Date("2026-03-01T00:00:00.000Z"),
         },
-      })
-      .mockResolvedValueOnce({
+      }],
+      ["api_key_2", {
         allowed: true,
         remaining: { hour: 0, day: 0, month: 0 },
         resetTimes: {
@@ -925,7 +929,8 @@ describe("GET /auth/dashboard", () => {
           day: new Date("2026-02-21T00:00:00.000Z"),
           month: new Date("2026-03-01T00:00:00.000Z"),
         },
-      });
+      }],
+    ]));
 
     const response = await request(app)
       .get("/auth/dashboard")
@@ -960,8 +965,7 @@ describe("GET /auth/dashboard", () => {
       month: 0,
     });
 
-    expect(mockedCheckRateLimit).toHaveBeenCalledWith("api_key_1", "DEVELOPER");
-    expect(mockedCheckRateLimit).toHaveBeenCalledWith("api_key_2", "HOBBY");
+    expect(mockedBatchCheckRateLimits).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to zero in summary when usageCount is missing", async () => {
@@ -992,6 +996,8 @@ describe("GET /auth/dashboard", () => {
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
           lastUsed: null,
           usageCount: null,
+          currentMonthUsage: 0,
+          monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"),
         },
         {
           id: "api_key_b",
@@ -1003,15 +1009,16 @@ describe("GET /auth/dashboard", () => {
           createdAt: new Date("2026-01-02T00:00:00.000Z"),
           lastUsed: null,
           usageCount: undefined,
+          currentMonthUsage: 0,
+          monthlyResetDate: new Date("2026-03-01T00:00:00.000Z"),
         },
       ],
     } as any);
 
-    mockedCheckRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: { hour: 0, day: 0, month: 0 },
-      resetTimes: { hour: new Date(), day: new Date(), month: new Date() },
-    });
+    mockedBatchCheckRateLimits.mockResolvedValue(new Map([
+      ["api_key_a", { allowed: true, remaining: { hour: 0, day: 0, month: 0 }, resetTimes: { hour: new Date(), day: new Date(), month: new Date() } }],
+      ["api_key_b", { allowed: true, remaining: { hour: 0, day: 0, month: 0 }, resetTimes: { hour: new Date(), day: new Date(), month: new Date() } }],
+    ]));
 
     const response = await request(app)
       .get("/auth/dashboard")
