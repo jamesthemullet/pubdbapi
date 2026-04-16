@@ -290,12 +290,36 @@ describe("GET /api/v1/pubs/near", () => {
     expect(response.body.data).toHaveLength(1);
     expect(response.body.data[0]).toMatchObject({ id: "a", name: "Near" });
     expect(response.body.search).toMatchObject({ radius: 5, found: 1 });
+    // DB query uses the internal bounding-box cap, not the user's limit
     expect(mockedPubFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        take: 20,
-        orderBy: { name: "asc" },
+        take: 500,
       })
     );
+    expect(mockedPubFindMany).toHaveBeenCalledWith(
+      expect.not.objectContaining({ orderBy: expect.anything() })
+    );
+  });
+
+  it("applies the user limit after the radius filter, not before", async () => {
+    // 3 pubs all within radius — with the old code, take:1 at the DB level would
+    // have returned only 1 pub (sorted by name) before the distance filter ran.
+    // With the fix, all 3 are fetched from the bounding box and the limit of 1
+    // is applied after sorting by distance, so we get the closest one.
+    mockedPubFindMany.mockResolvedValueOnce([
+      { id: "mid",   name: "Mid",   lat: 51.505366, lng: -0.14189 },
+      { id: "close", name: "Close", lat: 51.501366, lng: -0.14189 },
+      { id: "far",   name: "Far",   lat: 51.511366, lng: -0.14189 },
+    ] as any);
+
+    const response = await request(app).get(
+      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5&limit=1"
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+    // The closest pub is returned, not whichever happened to be first alphabetically
+    expect(response.body.data[0].id).toBe("close");
   });
 
   it("sorts nearby pubs by ascending distance", async () => {
