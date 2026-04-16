@@ -6,6 +6,7 @@ import express, {
 } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearCache } from "../utils/cache";
 
 const testState = vi.hoisted(() => ({
   auth: {
@@ -386,6 +387,7 @@ describe("GET /api/v1/stats", () => {
     testState.auth.blockedFeatures.clear();
     mockedPubCount.mockReset();
     mockedPubGroupBy.mockReset();
+    clearCache("stats");
   });
 
   it("returns aggregate stats with sorted top lists", async () => {
@@ -464,6 +466,7 @@ describe("GET /api/v1/filters", () => {
   beforeEach(() => {
     testState.auth.mode = "ok";
     mockedPubFindMany.mockReset();
+    clearCache("filters");
   });
 
   it("returns distinct filter values", async () => {
