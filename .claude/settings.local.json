@@ -14,7 +14,12 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git push:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(grep -n \"findMany\\\\|findFirst\\\\|findUnique\\\\|include\\\\|select\" /c/Users/james/Documents/GitHub/pub-api/src/routes/*.ts)",
+      "Bash(grep *)",
+      "Bash(git commit -m ' *)",
+      "Bash(yarn prisma *)"
     ]
   }
 }
