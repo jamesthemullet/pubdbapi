@@ -48,6 +48,10 @@ export async function checkRateLimit(
   const apiKey = await prisma.apiKey.findUnique({
     where: { id: apiKeyId },
     select: {
+      currentHourUsage: true,
+      hourlyResetDate: true,
+      currentDayUsage: true,
+      dailyResetDate: true,
       currentMonthUsage: true,
       monthlyResetDate: true,
     },
@@ -61,56 +65,49 @@ export async function checkRateLimit(
     };
   }
 
+  const hourlyResetNeeded = now >= apiKey.hourlyResetDate;
+  const dailyResetNeeded = now >= apiKey.dailyResetDate;
   const monthlyResetNeeded = now > apiKey.monthlyResetDate;
 
-  if (monthlyResetNeeded) {
-    const nextReset = new Date(now);
-    nextReset.setMonth(nextReset.getMonth() + 1);
-    nextReset.setDate(1);
-    nextReset.setHours(0, 0, 0, 0);
+  // Build next reset timestamps
+  const nextHourReset = new Date(now);
+  nextHourReset.setMinutes(0, 0, 0);
+  nextHourReset.setHours(nextHourReset.getHours() + 1);
 
-    await prisma.apiKey.update({
-      where: { id: apiKeyId },
-      data: {
-        currentMonthUsage: 0,
-        monthlyResetDate: nextReset,
-      },
-    });
+  const nextDayReset = new Date(now);
+  nextDayReset.setHours(0, 0, 0, 0);
+  nextDayReset.setDate(nextDayReset.getDate() + 1);
+
+  const nextMonthReset = new Date(now);
+  nextMonthReset.setMonth(nextMonthReset.getMonth() + 1);
+  nextMonthReset.setDate(1);
+  nextMonthReset.setHours(0, 0, 0, 0);
+
+  // Reset any expired windows in a single update if needed
+  if (hourlyResetNeeded || dailyResetNeeded || monthlyResetNeeded) {
+    const resetData: Record<string, number | Date> = {};
+    if (hourlyResetNeeded) {
+      resetData.currentHourUsage = 0;
+      resetData.hourlyResetDate = nextHourReset;
+    }
+    if (dailyResetNeeded) {
+      resetData.currentDayUsage = 0;
+      resetData.dailyResetDate = nextDayReset;
+    }
+    if (monthlyResetNeeded) {
+      resetData.currentMonthUsage = 0;
+      resetData.monthlyResetDate = nextMonthReset;
+    }
+    await prisma.apiKey.update({ where: { id: apiKeyId }, data: resetData });
   }
 
-  // Calculate time windows
-  const hourStart = new Date(now);
-  hourStart.setMinutes(0);
-  hourStart.setSeconds(0);
-  hourStart.setMilliseconds(0);
-
-  const dayStart = new Date(now);
-  dayStart.setHours(0);
-  dayStart.setMinutes(0);
-  dayStart.setSeconds(0);
-  dayStart.setMilliseconds(0);
-
-  // Get usage counts for different time periods using ApiKeyUsage table
-  const [hourlyUsage, dailyUsage] = await Promise.all([
-    prisma.apiKeyUsage.count({
-      where: {
-        apiKeyId: apiKeyId,
-        timestamp: { gte: hourStart },
-      },
-    }),
-    prisma.apiKeyUsage.count({
-      where: {
-        apiKeyId: apiKeyId,
-        timestamp: { gte: dayStart },
-      },
-    }),
-  ]);
-
+  const currentHourUsage = hourlyResetNeeded ? 0 : apiKey.currentHourUsage;
+  const currentDayUsage = dailyResetNeeded ? 0 : apiKey.currentDayUsage;
   const currentMonthUsage = monthlyResetNeeded ? 0 : apiKey.currentMonthUsage;
 
   const remaining = {
-    hour: Math.max(0, limits.requestsPerHour - hourlyUsage),
-    day: Math.max(0, limits.requestsPerDay - dailyUsage),
+    hour: Math.max(0, limits.requestsPerHour - currentHourUsage),
+    day: Math.max(0, limits.requestsPerDay - currentDayUsage),
     month: Math.max(0, limits.requestsPerMonth - currentMonthUsage),
   };
 
@@ -118,9 +115,9 @@ export async function checkRateLimit(
     remaining.hour > 0 && remaining.day > 0 && remaining.month > 0;
 
   const resetTimes = {
-    hour: new Date(hourStart.getTime() + 60 * 60 * 1000),
-    day: new Date(dayStart.getTime() + 24 * 60 * 60 * 1000),
-    month: apiKey.monthlyResetDate,
+    hour: hourlyResetNeeded ? nextHourReset : apiKey.hourlyResetDate,
+    day: dailyResetNeeded ? nextDayReset : apiKey.dailyResetDate,
+    month: monthlyResetNeeded ? nextMonthReset : apiKey.monthlyResetDate,
   };
 
   return { allowed, remaining, resetTimes };
@@ -152,6 +149,8 @@ export async function recordApiUsage(
       where: { id: apiKeyId },
       data: {
         usageCount: { increment: 1 },
+        currentHourUsage: { increment: 1 },
+        currentDayUsage: { increment: 1 },
         currentMonthUsage: { increment: 1 },
         lastUsed: new Date(),
       },

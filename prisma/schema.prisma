@@ -182,6 +182,10 @@ model ApiKey {
   requestsPerHour   Int @default(100)
   requestsPerDay    Int @default(1000)
   requestsPerMonth  Int @default(10000)
+  currentHourUsage  Int      @default(0)
+  hourlyResetDate   DateTime @default(now())
+  currentDayUsage   Int      @default(0)
+  dailyResetDate    DateTime @default(now())
   currentMonthUsage Int @default(0)
   monthlyResetDate  DateTime @default(now())
   
