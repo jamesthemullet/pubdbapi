@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { ApiKeyTier, Prisma } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { addHours } from "date-fns";
