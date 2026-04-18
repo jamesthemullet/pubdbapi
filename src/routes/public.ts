@@ -33,6 +33,7 @@ router.get(
         postcode,
         area,
         country,
+        search,
         page,
         limit,
       } = req.query;
@@ -45,6 +46,7 @@ router.get(
         postcode: postcode ? String(postcode) : undefined,
         area: area ? String(area) : undefined,
         country: country ? String(country) : undefined,
+        search: search ? String(search) : undefined,
       };
 
       const { pageNum, limitNum, skip } = parsePagination(
@@ -53,6 +55,8 @@ router.get(
       );
 
       const { pubs, total } = await listPubs(filters, { skip, limitNum });
+
+      console.log(20, pubs);
 
       res.json({
         success: true,
@@ -73,6 +77,7 @@ router.get(
           postcode: postcode || null,
           area: area || null,
           country: country || null,
+          search: search || null,
         },
       });
     } catch (error) {

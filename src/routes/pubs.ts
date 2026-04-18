@@ -34,6 +34,7 @@ router.get("/", async (req, res) => {
     postcode,
     area,
     country,
+    search,
     page,
     limit,
   } = req.query;
@@ -46,6 +47,7 @@ router.get("/", async (req, res) => {
     postcode: postcode ? String(postcode) : undefined,
     area: area ? String(area) : undefined,
     country: country ? String(country) : undefined,
+    search: search ? String(search) : undefined,
   };
 
   const { pageNum, limitNum, skip } = parsePagination(
@@ -74,6 +76,7 @@ router.get("/", async (req, res) => {
       postcode: postcode || null,
       area: area || null,
       country: country || null,
+      search: search || null,
     },
   });
 });

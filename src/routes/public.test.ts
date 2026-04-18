@@ -158,6 +158,7 @@ describe("GET /api/v1/pubs", () => {
         postcode: undefined,
         area: undefined,
         country: undefined,
+        search: undefined,
       },
       { skip: 0, limitNum: 50 }
     );
@@ -185,6 +186,7 @@ describe("GET /api/v1/pubs", () => {
         postcode: "NW1 6XE",
         area: "North",
         country: "GB",
+        search: undefined,
       },
       { skip: 0, limitNum: 50 }
     );
@@ -202,6 +204,7 @@ describe("GET /api/v1/pubs", () => {
       postcode: null,
       area: null,
       country: null,
+      search: null,
     });
   });
 
@@ -229,6 +232,24 @@ describe("GET /api/v1/pubs", () => {
       error: "Internal server error",
       message: "Failed to fetch pubs",
     });
+  });
+
+  it("passes search param to listPubs and reflects it in response filters", async () => {
+    const response = await request(app).get("/api/v1/pubs?search=green");
+
+    expect(response.status).toBe(200);
+    expect(mockedListPubs).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "green" }),
+      expect.any(Object)
+    );
+    expect(response.body.filters.search).toBe("green");
+  });
+
+  it("returns null for search filter when not provided", async () => {
+    const response = await request(app).get("/api/v1/pubs");
+
+    expect(response.status).toBe(200);
+    expect(response.body.filters.search).toBeNull();
   });
 });
 

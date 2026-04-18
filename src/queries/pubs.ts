@@ -8,10 +8,22 @@ export interface PubListFilters {
   postcode?: string;
   area?: string;
   country?: string;
+  search?: string;
 }
 
 export function buildPubWhereClause(filters: PubListFilters) {
   const where: Record<string, unknown> = {};
+
+  if (filters.search) {
+    const term = { contains: filters.search, mode: "insensitive" };
+    where.OR = [
+      { name: term },
+      { area: term },
+      { borough: term },
+      { city: term },
+      { operator: term },
+    ];
+  }
 
   if (filters.city) {
     where.city = { equals: filters.city, mode: "insensitive" };
