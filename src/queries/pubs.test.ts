@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../prisma", () => ({
+  prisma: {},
+}));
+
 import { buildPubWhereClause, parsePagination } from "./pubs";
 
 describe("buildPubWhereClause", () => {
