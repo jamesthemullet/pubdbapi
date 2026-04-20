@@ -3,11 +3,15 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 const {
   mockApiKeyFindUnique,
   mockApiKeyUpdate,
+  mockApiKeyUpdateMany,
   mockApiKeyUsageCreate,
+  mockApiKeyUsageGroupBy,
 } = vi.hoisted(() => ({
   mockApiKeyFindUnique: vi.fn(),
   mockApiKeyUpdate: vi.fn(),
+  mockApiKeyUpdateMany: vi.fn(),
   mockApiKeyUsageCreate: vi.fn(),
+  mockApiKeyUsageGroupBy: vi.fn(),
 }));
 
 vi.mock("@prisma/client", () => {
@@ -16,15 +20,17 @@ vi.mock("@prisma/client", () => {
       apiKey = {
         findUnique: mockApiKeyFindUnique,
         update: mockApiKeyUpdate,
+        updateMany: mockApiKeyUpdateMany,
       };
       apiKeyUsage = {
         create: mockApiKeyUsageCreate,
+        groupBy: mockApiKeyUsageGroupBy,
       };
     },
   };
 });
 
-import { checkRateLimit, recordApiUsage, TIER_LIMITS } from "./rateLimiting";
+import { checkRateLimit, batchCheckRateLimits, recordApiUsage, TIER_LIMITS } from "./rateLimiting";
 
 describe("rateLimiting utils", () => {
   beforeEach(() => {
@@ -123,6 +129,84 @@ describe("rateLimiting utils", () => {
         day: 199,
         month: 999,
       });
+    });
+  });
+
+  describe("batchCheckRateLimits", () => {
+    beforeEach(() => {
+      mockApiKeyUsageGroupBy.mockReset();
+      mockApiKeyUpdateMany.mockReset();
+    });
+
+    it("returns empty map when given no keys", async () => {
+      const result = await batchCheckRateLimits([]);
+      expect(result.size).toBe(0);
+      expect(mockApiKeyUsageGroupBy).not.toHaveBeenCalled();
+    });
+
+    it("computes remaining limits from usage counts", async () => {
+      mockApiKeyUsageGroupBy
+        .mockResolvedValueOnce([{ apiKeyId: "key_1", _count: { apiKeyId: 5 } }])  // hourly
+        .mockResolvedValueOnce([{ apiKeyId: "key_1", _count: { apiKeyId: 15 } }]); // daily
+
+      const futureReset = new Date("2026-04-01T00:00:00.000Z");
+      const result = await batchCheckRateLimits([
+        { id: "key_1", tier: "HOBBY" as any, currentMonthUsage: 10, monthlyResetDate: futureReset },
+      ]);
+
+      const entry = result.get("key_1")!;
+      expect(entry.allowed).toBe(true);
+      expect(entry.remaining.hour).toBe(15); // 20 - 5
+      expect(entry.remaining.day).toBe(185); // 200 - 15
+      expect(entry.remaining.month).toBe(990); // 1000 - 10
+    });
+
+    it("denies when hourly limit is exhausted", async () => {
+      mockApiKeyUsageGroupBy
+        .mockResolvedValueOnce([{ apiKeyId: "key_2", _count: { apiKeyId: 20 } }]) // hourly maxed
+        .mockResolvedValueOnce([]);
+
+      const futureReset = new Date("2026-04-01T00:00:00.000Z");
+      const result = await batchCheckRateLimits([
+        { id: "key_2", tier: "HOBBY" as any, currentMonthUsage: 0, monthlyResetDate: futureReset },
+      ]);
+
+      expect(result.get("key_2")!.allowed).toBe(false);
+      expect(result.get("key_2")!.remaining.hour).toBe(0);
+    });
+
+    it("resets monthly usage for keys whose reset date has passed", async () => {
+      mockApiKeyUsageGroupBy.mockResolvedValue([]);
+      mockApiKeyUpdateMany.mockResolvedValue({ count: 1 });
+
+      const pastReset = new Date("2026-03-01T00:00:00.000Z"); // before 2026-03-06 system time
+      const result = await batchCheckRateLimits([
+        { id: "key_3", tier: "DEVELOPER" as any, currentMonthUsage: 500, monthlyResetDate: pastReset },
+      ]);
+
+      expect(mockApiKeyUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ["key_3"] } },
+          data: expect.objectContaining({ currentMonthUsage: 0 }),
+        })
+      );
+      // After reset, month usage treated as 0
+      expect(result.get("key_3")!.remaining.month).toBe(100000);
+    });
+
+    it("uses 0 for keys absent from usage counts", async () => {
+      mockApiKeyUsageGroupBy.mockResolvedValue([]); // no records for this key
+
+      const futureReset = new Date("2026-04-01T00:00:00.000Z");
+      const result = await batchCheckRateLimits([
+        { id: "key_4", tier: "BUSINESS" as any, currentMonthUsage: 0, monthlyResetDate: futureReset },
+      ]);
+
+      const entry = result.get("key_4")!;
+      expect(entry.remaining.hour).toBe(5000);
+      expect(entry.remaining.day).toBe(50000);
+      expect(entry.remaining.month).toBe(500000);
+      expect(entry.allowed).toBe(true);
     });
   });
 
