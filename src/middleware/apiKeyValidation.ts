@@ -28,14 +28,13 @@ export const validateApiKey = async (
   const startTime = Date.now();
 
   try {
-    const apiKeyValue = req.headers["x-api-key"] || req.query.api_key;
+    const apiKeyValue = req.headers["x-api-key"];
 
     if (!apiKeyValue) {
       return res.status(401).json({
         success: false,
         error: "Unauthorized",
-        message:
-          "API key is required. Include it in the X-API-Key header or api_key query parameter.",
+        message: "API key is required. Include it in the X-API-Key header.",
       });
     }
 

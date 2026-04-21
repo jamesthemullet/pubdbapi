@@ -19,7 +19,8 @@
       "Bash(grep -n \"findMany\\\\|findFirst\\\\|findUnique\\\\|include\\\\|select\" /c/Users/james/Documents/GitHub/pub-api/src/routes/*.ts)",
       "Bash(grep *)",
       "Bash(git commit -m ' *)",
-      "Bash(yarn prisma *)"
+      "Bash(yarn prisma *)",
+      "Bash(yarn test:coverage)"
     ]
   }
 }
