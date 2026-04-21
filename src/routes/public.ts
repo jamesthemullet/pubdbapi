@@ -399,7 +399,7 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
     usage: {
       authentication: "API key required for all endpoints except /info",
       apiKey:
-        "Include API key in 'X-API-Key' header or 'api_key' query parameter",
+        "Include API key in 'X-API-Key' header",
       tiers: {
         TESTING:
           "50 req/hour, 200 req/day, 1K req/month, max 10 results, no location/stats",
