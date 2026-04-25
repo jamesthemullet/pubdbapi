@@ -116,9 +116,7 @@ router.post(
       });
     }
 
-    const createData: any = { ...parsed.data };
-
-    const pub = await prisma.pub.create({ data: createData });
+    const pub = await prisma.pub.create({ data: parsed.data });
 
     const clientInfo = getClientInfo(req);
     createAuditLog({
