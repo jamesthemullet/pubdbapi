@@ -20,7 +20,14 @@
       "Bash(grep *)",
       "Bash(git commit -m ' *)",
       "Bash(yarn prisma *)",
-      "Bash(yarn test:coverage)"
+      "Bash(yarn test:coverage)",
+      "Bash(claude --version)",
+      "Bash(claude -v)",
+      "Bash(mkdir -p /c/Users/james/Documents/GitHub/pub-api/.claude/commands)",
+      "Bash(mv /c/Users/james/Documents/GitHub/pub-api/.claude/skills/quality.md /c/Users/james/Documents/GitHub/pub-api/.claude/commands/quality.md)",
+      "Bash(mv /c/Users/james/Documents/GitHub/pub-api/.claude/skills/tests.md /c/Users/james/Documents/GitHub/pub-api/.claude/commands/tests.md)",
+      "Bash(rmdir /c/Users/james/Documents/GitHub/pub-api/.claude/skills)",
+      "Bash(yarn lint *)"
     ]
   }
 }

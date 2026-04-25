@@ -34,9 +34,15 @@ export const createAuditLog = async (data: AuditLogData) => {
 };
 
 // Helper function to get client info from request
-export const getClientInfo = (req: any) => {
+interface ClientInfoRequest {
+  ip?: string;
+  connection?: { remoteAddress?: string };
+  get(field: string): string | undefined;
+}
+
+export const getClientInfo = (req: ClientInfoRequest) => {
   return {
-    ipAddress: req.ip || req.connection.remoteAddress || "unknown",
+    ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
     userAgent: req.get("User-Agent") || "unknown",
   };
 };
