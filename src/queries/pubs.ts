@@ -1,5 +1,22 @@
 import { prisma } from "../prisma";
 
+export const PUB_AMENITY_FIELDS = [
+  { key: "isIndependent", label: "Independent" },
+  { key: "hasFood", label: "Food available" },
+  { key: "hasSundayRoast", label: "Sunday roast" },
+  { key: "hasBeerGarden", label: "Beer garden" },
+  { key: "hasCaskAle", label: "Cask ale" },
+  { key: "isBeerFocused", label: "Beer-focused" },
+  { key: "isDogFriendly", label: "Dog friendly" },
+  { key: "isFamilyFriendly", label: "Family friendly" },
+  { key: "hasStepFreeAccess", label: "Step-free access" },
+  { key: "hasAccessibleToilet", label: "Accessible toilet" },
+  { key: "hasLiveSport", label: "Live sport" },
+  { key: "hasLiveMusic", label: "Live music" },
+] as const;
+
+type AmenityKey = (typeof PUB_AMENITY_FIELDS)[number]["key"];
+
 export interface PubListFilters {
   city?: string;
   name?: string;
@@ -9,6 +26,7 @@ export interface PubListFilters {
   area?: string;
   country?: string;
   search?: string;
+  amenities?: Partial<Record<AmenityKey, boolean>>;
 }
 
 export function buildPubWhereClause(filters: PubListFilters) {
@@ -45,6 +63,14 @@ export function buildPubWhereClause(filters: PubListFilters) {
   }
   if (filters.country) {
     where.country = { equals: filters.country, mode: "insensitive" };
+  }
+
+  if (filters.amenities) {
+    for (const [key, value] of Object.entries(filters.amenities)) {
+      if (value !== undefined) {
+        where[key] = value;
+      }
+    }
   }
 
   return where;

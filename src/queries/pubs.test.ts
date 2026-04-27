@@ -4,7 +4,7 @@ vi.mock("../prisma", () => ({
   prisma: {},
 }));
 
-import { buildPubWhereClause, parsePagination } from "./pubs";
+import { buildPubWhereClause, parsePagination, PUB_AMENITY_FIELDS } from "./pubs";
 
 describe("buildPubWhereClause", () => {
   describe("search", () => {
@@ -87,6 +87,61 @@ describe("buildPubWhereClause", () => {
       const where = buildPubWhereClause({});
       expect(where).toEqual({});
     });
+  });
+
+  describe("amenity filters", () => {
+    it("applies a true boolean amenity filter", () => {
+      const where = buildPubWhereClause({ amenities: { hasFood: true } });
+      expect(where.hasFood).toBe(true);
+    });
+
+    it("applies a false boolean amenity filter", () => {
+      const where = buildPubWhereClause({ amenities: { isDogFriendly: false } });
+      expect(where.isDogFriendly).toBe(false);
+    });
+
+    it("applies multiple amenity filters", () => {
+      const where = buildPubWhereClause({
+        amenities: { hasBeerGarden: true, hasLiveMusic: false },
+      });
+      expect(where.hasBeerGarden).toBe(true);
+      expect(where.hasLiveMusic).toBe(false);
+    });
+
+    it("can be combined with other filters", () => {
+      const where = buildPubWhereClause({ city: "London", amenities: { hasCaskAle: true } });
+      expect(where.city).toEqual({ equals: "London", mode: "insensitive" });
+      expect(where.hasCaskAle).toBe(true);
+    });
+
+    it("ignores amenities when object is empty", () => {
+      const where = buildPubWhereClause({ amenities: {} });
+      expect(where).toEqual({});
+    });
+
+    it("ignores amenities when undefined", () => {
+      const where = buildPubWhereClause({ amenities: undefined });
+      expect(where).toEqual({});
+    });
+  });
+});
+
+describe("PUB_AMENITY_FIELDS", () => {
+  it("contains all expected amenity fields", () => {
+    expect(PUB_AMENITY_FIELDS).toEqual([
+      { key: "isIndependent", label: "Independent" },
+      { key: "hasFood", label: "Food available" },
+      { key: "hasSundayRoast", label: "Sunday roast" },
+      { key: "hasBeerGarden", label: "Beer garden" },
+      { key: "hasCaskAle", label: "Cask ale" },
+      { key: "isBeerFocused", label: "Beer-focused" },
+      { key: "isDogFriendly", label: "Dog friendly" },
+      { key: "isFamilyFriendly", label: "Family friendly" },
+      { key: "hasStepFreeAccess", label: "Step-free access" },
+      { key: "hasAccessibleToilet", label: "Accessible toilet" },
+      { key: "hasLiveSport", label: "Live sport" },
+      { key: "hasLiveMusic", label: "Live music" },
+    ]);
   });
 });
 
