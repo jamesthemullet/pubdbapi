@@ -102,10 +102,38 @@ describe("buildPubWhereClause", () => {
 
     it("applies multiple amenity filters", () => {
       const where = buildPubWhereClause({
-        amenities: { hasBeerGarden: true, hasLiveMusic: false },
+        amenities: { hasCaskAle: true, hasLiveMusic: false },
       });
-      expect(where.hasBeerGarden).toBe(true);
+      expect(where.hasCaskAle).toBe(true);
       expect(where.hasLiveMusic).toBe(false);
+    });
+
+    it("hasBeerGarden=true matches pubs with the boolean set OR with beer garden records", () => {
+      const where = buildPubWhereClause({ amenities: { hasBeerGarden: true } });
+      expect(where.AND).toEqual([
+        { OR: [{ hasBeerGarden: true }, { beerGardens: { some: {} } }] },
+      ]);
+      expect(where.hasBeerGarden).toBeUndefined();
+    });
+
+    it("hasBeerGarden=false filters by the boolean field directly", () => {
+      const where = buildPubWhereClause({ amenities: { hasBeerGarden: false } });
+      expect(where.hasBeerGarden).toBe(false);
+      expect(where.AND).toBeUndefined();
+    });
+
+    it("hasBeerGarden=true can be combined with other filters and search", () => {
+      const where = buildPubWhereClause({
+        city: "London",
+        search: "garden",
+        amenities: { hasBeerGarden: true, hasFood: true },
+      });
+      expect(where.city).toEqual({ equals: "London", mode: "insensitive" });
+      expect(where.hasFood).toBe(true);
+      expect(where.AND).toEqual([
+        { OR: [{ hasBeerGarden: true }, { beerGardens: { some: {} } }] },
+      ]);
+      expect(where.OR).toBeDefined();
     });
 
     it("can be combined with other filters", () => {
