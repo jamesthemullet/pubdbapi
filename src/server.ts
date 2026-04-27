@@ -1,4 +1,5 @@
 import express from "express";
+import qs from "qs";
 import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
@@ -13,6 +14,7 @@ import paymentsRoutes from "./routes/payments";
 dotenv.config();
 
 const app = express();
+app.set("query parser", (str: string) => qs.parse(str));
 export { prisma };
 
 app.use(compression());

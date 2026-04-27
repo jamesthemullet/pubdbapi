@@ -21,6 +21,7 @@ import {
   getPubById,
   parsePagination,
   PubListFilters,
+  PUB_AMENITY_FIELDS,
 } from "../queries/pubs";
 
 const router = Router();
@@ -39,6 +40,18 @@ router.get("/", async (req, res) => {
     limit,
   } = req.query;
 
+  const amenityQuery =
+    req.query.amenities && typeof req.query.amenities === "object" && !Array.isArray(req.query.amenities)
+      ? (req.query.amenities as Record<string, unknown>)
+      : {};
+
+  const amenities: PubListFilters["amenities"] = {};
+  for (const { key } of PUB_AMENITY_FIELDS) {
+    const raw = amenityQuery[key];
+    if (raw === "true") amenities[key] = true;
+    else if (raw === "false") amenities[key] = false;
+  }
+
   const filters: PubListFilters = {
     city: city ? String(city) : undefined,
     name: name ? String(name) : undefined,
@@ -48,6 +61,7 @@ router.get("/", async (req, res) => {
     area: area ? String(area) : undefined,
     country: country ? String(country) : undefined,
     search: search ? String(search) : undefined,
+    amenities: Object.keys(amenities).length > 0 ? amenities : undefined,
   };
 
   const { pageNum, limitNum, skip } = parsePagination(
@@ -56,6 +70,10 @@ router.get("/", async (req, res) => {
   );
 
   const { pubs, total } = await listPubs(filters, { skip, limitNum });
+
+  const amenityFilters = Object.fromEntries(
+    PUB_AMENITY_FIELDS.map(({ key }) => [key, amenities[key] ?? null])
+  );
 
   res.json({
     success: true,
@@ -77,6 +95,7 @@ router.get("/", async (req, res) => {
       area: area || null,
       country: country || null,
       search: search || null,
+      ...amenityFilters,
     },
   });
 });

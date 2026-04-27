@@ -1,4 +1,5 @@
 import express from "express";
+import qs from "qs";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import router from "./pubs";
@@ -75,6 +76,7 @@ vi.mock("../types", async () => {
 });
 
 const app = express();
+app.set("query parser", (str: string) => qs.parse(str));
 app.use(express.json());
 app.use("/pubs", router);
 
@@ -159,6 +161,72 @@ describe("GET /pubs", () => {
         city: { equals: "London", mode: "insensitive" },
         name: { contains: "Crown", mode: "insensitive" },
       },
+    });
+  });
+
+  it("applies amenity filters parsed from query params", async () => {
+    mockedFindMany.mockResolvedValueOnce([{ id: "pub_3", name: "The Dog" }] as any);
+    mockedCount.mockResolvedValueOnce(1 as any);
+
+    const response = await request(app).get(
+      "/pubs?amenities%5BhasFood%5D=true&amenities%5BisDogFriendly%5D=true&amenities%5BhasLiveMusic%5D=false"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedFindMany).toHaveBeenCalledWith({
+      where: {
+        hasFood: true,
+        isDogFriendly: true,
+        hasLiveMusic: false,
+      },
+      orderBy: { name: "asc" },
+      skip: 0,
+      take: 50,
+    });
+    expect(response.body.filters).toMatchObject({
+      hasFood: true,
+      isDogFriendly: true,
+      hasLiveMusic: false,
+    });
+  });
+
+  it("ignores amenity query params with non-boolean values", async () => {
+    mockedFindMany.mockResolvedValueOnce([] as any);
+    mockedCount.mockResolvedValueOnce(0 as any);
+
+    const response = await request(app).get(
+      "/pubs?amenities%5BhasFood%5D=yes&amenities%5BisDogFriendly%5D=1"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedFindMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { name: "asc" },
+      skip: 0,
+      take: 50,
+    });
+  });
+
+  it("includes all amenity keys as null in filters when none supplied", async () => {
+    mockedFindMany.mockResolvedValueOnce([] as any);
+    mockedCount.mockResolvedValueOnce(0 as any);
+
+    const response = await request(app).get("/pubs");
+
+    expect(response.status).toBe(200);
+    expect(response.body.filters).toMatchObject({
+      isIndependent: null,
+      hasFood: null,
+      hasSundayRoast: null,
+      hasBeerGarden: null,
+      hasCaskAle: null,
+      isBeerFocused: null,
+      isDogFriendly: null,
+      isFamilyFriendly: null,
+      hasStepFreeAccess: null,
+      hasAccessibleToilet: null,
+      hasLiveSport: null,
+      hasLiveMusic: null,
     });
   });
 

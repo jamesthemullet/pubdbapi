@@ -28,7 +28,10 @@
       "Bash(mv /c/Users/james/Documents/GitHub/pub-api/.claude/skills/tests.md /c/Users/james/Documents/GitHub/pub-api/.claude/commands/tests.md)",
       "Bash(rmdir /c/Users/james/Documents/GitHub/pub-api/.claude/skills)",
       "Bash(yarn lint *)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(gh issue *)",
+      "Bash(gh label *)",
+      "Bash(node -e \"require\\('qs'\\)\")"
     ]
   }
 }
