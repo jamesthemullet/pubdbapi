@@ -66,11 +66,16 @@ export function buildPubWhereClause(filters: PubListFilters) {
   }
 
   if (filters.amenities) {
+    const andClauses: Record<string, unknown>[] = [];
     for (const [key, value] of Object.entries(filters.amenities)) {
-      if (value !== undefined) {
+      if (value === undefined) continue;
+      if (key === "hasBeerGarden" && value === true) {
+        andClauses.push({ OR: [{ hasBeerGarden: true }, { beerGardens: { some: {} } }] });
+      } else {
         where[key] = value;
       }
     }
+    if (andClauses.length > 0) where.AND = andClauses;
   }
 
   return where;
