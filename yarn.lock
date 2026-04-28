@@ -1861,9 +1861,9 @@ jws@^4.0.1:
     safe-buffer "^5.0.1"
 
 knip@^6.0.0:
-  version "6.6.2"
-  resolved "https://registry.yarnpkg.com/knip/-/knip-6.6.2.tgz#4b9757585a1a2981b2b9650d3f9cdc965b7e0fa0"
-  integrity sha512-ma2p+SvgIs1GZZLUV9QJrLkb9gGNBQHk7fcrtt3aVhiW2XEXH/yfMOU88F7ZdriYuBYkB53djPNYMWb2pKVl/g==
+  version "6.7.0"
+  resolved "https://registry.yarnpkg.com/knip/-/knip-6.7.0.tgz#7c965fda20ebc8e26360f5965f06627a0804d041"
+  integrity sha512-ckL51NDH1YJxnv1kNB0iUdDngB4f/e9Igz8uIqYfmNDoyOFmmk1V0WFv3LQ7/hzC63b2Z9X41gGUE9eOWrZpaA==
   dependencies:
     fdir "^6.5.0"
     formatly "^0.3.0"
@@ -2744,9 +2744,9 @@ strip-json-comments@5.0.3:
   integrity sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==
 
 stripe@^22.0.0:
-  version "22.0.2"
-  resolved "https://registry.yarnpkg.com/stripe/-/stripe-22.0.2.tgz#4e83a96de08d3afadf6cf0ddaf613a3a96cf4630"
-  integrity sha512-2/BLrQ3oB1zlNfeL/LfHFjTGx6EQn0j+ztrrTJHuDjV5VVIpk92oSDaxyKLUr3pG3dnee2LZqhFUv2Bf0G1/3g==
+  version "22.1.0"
+  resolved "https://registry.yarnpkg.com/stripe/-/stripe-22.1.0.tgz#2873bf0a9e135c69e06b65d37e0f528fa5eadfa3"
+  integrity sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw==
 
 superagent@^10.3.0:
   version "10.3.0"
