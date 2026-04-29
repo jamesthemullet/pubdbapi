@@ -13,6 +13,7 @@ import {
   PubListFilters,
 } from "../queries/pubs";
 import { getFromCache, setInCache } from "../utils/cache";
+import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
 
 const CACHE_KEY_STATS = "stats";
 const CACHE_KEY_FILTERS = "filters";
@@ -376,6 +377,61 @@ router.get(
   }
 );
 
+router.get(
+  "/usage",
+  validateApiKey,
+  async (req: ApiKeyRequest, res: Response) => {
+    try {
+      const { id, tier } = req.apiKey!;
+      const limits = TIER_LIMITS[tier];
+      const { remaining, resetTimes } = await checkRateLimit(id, tier);
+
+      const usage = {
+        hour: limits.requestsPerHour - remaining.hour,
+        day: limits.requestsPerDay - remaining.day,
+        month: limits.requestsPerMonth - remaining.month,
+      };
+
+      const atOrNear80 = (used: number, limit: number) => used / limit >= 0.8;
+      const nearLimit =
+        atOrNear80(usage.hour, limits.requestsPerHour) ||
+        atOrNear80(usage.day, limits.requestsPerDay) ||
+        atOrNear80(usage.month, limits.requestsPerMonth);
+
+      const TIER_ORDER: string[] = ["HOBBY", "DEVELOPER", "BUSINESS"];
+      const nextTier = TIER_ORDER[TIER_ORDER.indexOf(tier) + 1] ?? null;
+      const upgradeAvailable = nearLimit && tier !== "BUSINESS";
+
+      const response: Record<string, unknown> = {
+        success: true,
+        tier,
+        usage,
+        limits: {
+          requestsPerHour: limits.requestsPerHour,
+          requestsPerDay: limits.requestsPerDay,
+          requestsPerMonth: limits.requestsPerMonth,
+        },
+        remaining,
+        resetTimes,
+      };
+
+      if (upgradeAvailable && nextTier) {
+        response.upgradeAvailable = true;
+        response.upgradeHint = `You are approaching your ${tier} quota. Upgrade to ${nextTier} for higher limits.`;
+      }
+
+      res.json(response);
+    } catch (error) {
+      console.error("Usage endpoint error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to fetch usage data",
+      });
+    }
+  }
+);
+
 router.get("/info", async (req: ApiKeyRequest, res: Response) => {
   res.json({
     success: true,
@@ -394,6 +450,7 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       "GET /api/v1/beer-types": "Get available beer types",
       "GET /api/v1/filters":
         "Get available filter values for cities, operators, etc.",
+      "GET /api/v1/usage": "Get your current quota usage and remaining limits",
       "GET /api/v1/info": "Get API information",
     },
     usage: {
