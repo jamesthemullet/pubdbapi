@@ -11,7 +11,11 @@ import { clearCache } from "../utils/cache";
 const testState = vi.hoisted(() => ({
   auth: {
     mode: "ok" as "ok" | "missing" | "invalid",
+    tier: "DEVELOPER" as "HOBBY" | "DEVELOPER" | "BUSINESS",
     blockedFeatures: new Set<string>(),
+  },
+  rateLimiting: {
+    checkRateLimit: vi.fn(),
   },
   prisma: {
     pub: {
@@ -33,6 +37,15 @@ const testState = vi.hoisted(() => ({
 vi.mock("../prisma", () => ({
   prisma: testState.prisma,
 }));
+
+vi.mock("../utils/rateLimiting", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../utils/rateLimiting")>();
+  return {
+    ...original,
+    checkRateLimit: testState.rateLimiting.checkRateLimit,
+  };
+});
 
 vi.mock("../queries/pubs", () => ({
   listPubs: testState.queries.listPubs,
@@ -62,7 +75,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
     (req as Request & { apiKey: unknown }).apiKey = {
       id: "k_1",
       userId: "u_1",
-      tier: "DEVELOPER",
+      tier: testState.auth.tier,
       limits: {
         requestsPerHour: 1000,
         requestsPerDay: 10000,
@@ -600,5 +613,118 @@ describe("GET /api/v1/info", () => {
     expect(response.body.success).toBe(true);
     expect(response.body.api.name).toBe("Pub Database Public API");
     expect(response.body.endpoints["GET /api/v1/pubs"]).toBeDefined();
+  });
+});
+
+describe("GET /api/v1/usage", () => {
+  const resetTimes = {
+    hour: new Date("2026-04-29T11:00:00Z"),
+    day: new Date("2026-04-30T00:00:00Z"),
+    month: new Date("2026-05-01T00:00:00Z"),
+  };
+
+  beforeEach(() => {
+    testState.auth.mode = "ok";
+    testState.auth.tier = "DEVELOPER";
+    testState.rateLimiting.checkRateLimit.mockReset();
+    testState.rateLimiting.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: { hour: 500, day: 5000, month: 50000 },
+      resetTimes,
+    });
+  });
+
+  it("returns 401 when API key is missing", async () => {
+    testState.auth.mode = "missing";
+
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ success: false, error: "Unauthorized" });
+    expect(testState.rateLimiting.checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("returns usage, limits, remaining, and resetTimes", async () => {
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.tier).toBe("DEVELOPER");
+    expect(response.body.usage).toEqual({ hour: 500, day: 5000, month: 50000 });
+    expect(response.body.limits).toEqual({
+      requestsPerHour: 1000,
+      requestsPerDay: 10000,
+      requestsPerMonth: 100000,
+    });
+    expect(response.body.remaining).toEqual({ hour: 500, day: 5000, month: 50000 });
+    expect(response.body.resetTimes).toBeDefined();
+  });
+
+  it("does not include upgrade fields when below 80% on any window", async () => {
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upgradeAvailable).toBeUndefined();
+    expect(response.body.upgradeHint).toBeUndefined();
+  });
+
+  it("includes upgradeAvailable when hour window is ≥80% consumed on HOBBY", async () => {
+    testState.auth.tier = "HOBBY";
+    // HOBBY: 20/hour — 17 used (85%) leaves 3 remaining
+    testState.rateLimiting.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: { hour: 3, day: 100, month: 500 },
+      resetTimes,
+    });
+
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upgradeAvailable).toBe(true);
+    expect(response.body.upgradeHint).toContain("DEVELOPER");
+  });
+
+  it("includes upgradeAvailable when month window is ≥80% consumed on DEVELOPER", async () => {
+    // DEVELOPER: 100000/month — 80000 used (80%) leaves 20000 remaining
+    testState.rateLimiting.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: { hour: 500, day: 5000, month: 20000 },
+      resetTimes,
+    });
+
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upgradeAvailable).toBe(true);
+    expect(response.body.upgradeHint).toContain("BUSINESS");
+  });
+
+  it("does not include upgrade fields for BUSINESS tier even at ≥80%", async () => {
+    testState.auth.tier = "BUSINESS";
+    // BUSINESS: 5000/hour — 4500 used (90%) leaves 500 remaining
+    testState.rateLimiting.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: { hour: 500, day: 5000, month: 50000 },
+      resetTimes,
+    });
+
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upgradeAvailable).toBeUndefined();
+    expect(response.body.upgradeHint).toBeUndefined();
+  });
+
+  it("returns 500 when checkRateLimit throws", async () => {
+    testState.rateLimiting.checkRateLimit.mockRejectedValue(new Error("db down"));
+
+    const response = await request(app).get("/api/v1/usage");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      success: false,
+      error: "Internal server error",
+      message: "Failed to fetch usage data",
+    });
   });
 });
