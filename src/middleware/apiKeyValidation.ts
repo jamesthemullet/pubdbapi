@@ -174,15 +174,3 @@ export const requireTierAccess = (requiredFeature: keyof TierLimits) => {
   };
 };
 
-// Middleware to enforce result limits based on tier
-export const enforceTierLimits = (
-  req: ApiKeyRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  if (!req.apiKey) {
-    return next();
-  }
-
-  next();
-};

@@ -18,7 +18,13 @@ function getAdapter() {
   }
 
   const pool =
-    globalForPrisma.prismaPool ?? new Pool({ connectionString });
+    globalForPrisma.prismaPool ??
+    new Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
 
   if (process.env.NODE_ENV !== "production") {
     globalForPrisma.prismaPool = pool;

@@ -3,7 +3,6 @@ import { prisma } from "../prisma";
 import {
   validateApiKey,
   requireTierAccess,
-  enforceTierLimits,
   ApiKeyRequest,
 } from "../middleware/apiKeyValidation";
 import {
@@ -22,7 +21,6 @@ const router = Router();
 router.get(
   "/pubs",
   validateApiKey,
-  enforceTierLimits,
   async (req: ApiKeyRequest, res: Response) => {
     try {
       const {
@@ -51,7 +49,8 @@ router.get(
 
       const { pageNum, limitNum, skip } = parsePagination(
         page as string | undefined,
-        limit as string | undefined
+        limit as string | undefined,
+        req.apiKey?.limits.maxResults
       );
 
       const { pubs, total } = await listPubs(filters, { skip, limitNum });
