@@ -38,6 +38,10 @@ vi.mock("../utils/sendResetEmail", () => ({
   sendResetEmail: vi.fn(),
 }));
 
+vi.mock("express-rate-limit", () => ({
+  default: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 vi.mock("../utils/rateLimiting", () => ({
   batchCheckRateLimits: vi.fn(),
   TIER_LIMITS: {

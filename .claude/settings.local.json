@@ -31,7 +31,8 @@
       "Bash(xargs cat *)",
       "Bash(gh issue *)",
       "Bash(gh label *)",
-      "Bash(node -e \"require\\('qs'\\)\")"
+      "Bash(node -e \"require\\('qs'\\)\")",
+      "Bash(yarn vitest *)"
     ]
   }
 }
