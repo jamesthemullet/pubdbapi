@@ -8,6 +8,7 @@ import {
 } from "../utils/subscriptionTierConfig";
 import crypto from "crypto";
 import { authMiddleware } from "../middleware/auth";
+import { requireAuth } from "../utils/authCheck";
 import { AuthenticatedRequest } from "../types";
 import { prisma } from "../prisma";
 
@@ -25,7 +26,7 @@ router.post(
   "/subscribe-to-hobby",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const hobbySubscriptionData = {
@@ -99,7 +100,7 @@ router.post(
   "/create-checkout-session",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const { priceId } = req.body;
@@ -140,7 +141,7 @@ router.post(
   "/upgrade-estimate",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const { priceId } = req.body;
@@ -219,7 +220,7 @@ router.post(
   "/perform-upgrade",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const { priceId } = req.body;
@@ -348,7 +349,7 @@ router.post(
   "/verify-session",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const { sessionId } = req.body;
@@ -497,7 +498,7 @@ router.post(
   "/cancel-subscription",
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (!requireAuth(req, res)) return;
 
     try {
       const user = await prisma.user.findUnique({

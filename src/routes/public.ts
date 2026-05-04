@@ -57,8 +57,6 @@ router.get(
 
       const { pubs, total } = await listPubs(filters, { skip, limitNum });
 
-      console.log(20, pubs);
-
       res.json({
         success: true,
         data: pubs,
