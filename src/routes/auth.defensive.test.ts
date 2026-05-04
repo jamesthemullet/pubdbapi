@@ -25,6 +25,10 @@ vi.mock("../prisma", () => ({
   },
 }));
 
+vi.mock("express-rate-limit", () => ({
+  default: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 vi.mock("../utils/rateLimiting", () => ({
   checkRateLimit: vi.fn(),
   TIER_LIMITS: {

@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { addHours } from "date-fns";
+import rateLimit from "express-rate-limit";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
 import { authMiddleware } from "../middleware/auth";
@@ -19,11 +20,29 @@ import {
 import { prisma } from "../prisma";
 
 const router = Router();
+
+// 5 attempts per 15 minutes per IP — protects against brute-force and credential stuffing
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts, please try again later" },
+});
+
+// 10 requests per hour per IP — limits registration spam and API key reissue abuse
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts, please try again later" },
+});
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
 const DEFAULT_TIER: ApiKeyTier = "HOBBY";
 
-router.post("/register", async (req, res) => {
+router.post("/register", registrationLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -72,7 +91,7 @@ router.post("/register", async (req, res) => {
   res.status(201).json({ message: "User registered" });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -113,7 +132,7 @@ router.post("/login", async (req, res) => {
   res.json({ token });
 });
 
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", loginLimiter, async (req, res) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -140,7 +159,7 @@ router.post("/forgot-password", async (req, res) => {
   res.json({ message: "If the email exists, a reset link has been sent" });
 });
 
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", loginLimiter, async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
@@ -174,7 +193,7 @@ router.post("/reset-password", async (req, res) => {
   res.json({ message: "Password has been reset successfully" });
 });
 
-router.post("/forgot-api-key", async (req, res) => {
+router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ errors: parsed.error.flatten() });
