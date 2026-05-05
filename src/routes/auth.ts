@@ -441,6 +441,27 @@ router.get(
   }
 );
 
+const ADDRESS_FIELDS = new Set(["address", "postcode", "city", "country", "lat", "lng", "area", "borough"]);
+const FEATURE_FIELDS = new Set([
+  "hasFood", "hasSundayRoast", "hasBeerGarden", "hasCaskAle", "isBeerFocused",
+  "isDogFriendly", "isFamilyFriendly", "hasStepFreeAccess", "hasAccessibleToilet",
+  "hasLiveSport", "hasLiveMusic",
+]);
+const DETAIL_FIELDS = new Set(["name", "description", "website", "phone", "chainName", "operator", "isIndependent", "imageUrl"]);
+
+export const categorizeEditTypes = (newValues: Record<string, unknown>): string[] => {
+  const types = new Set<string>();
+  for (const key of Object.keys(newValues)) {
+    if (ADDRESS_FIELDS.has(key)) types.add("address");
+    else if (FEATURE_FIELDS.has(key)) types.add("features");
+    else if (DETAIL_FIELDS.has(key)) types.add("details");
+    else if (key === "beerTypes") types.add("beer types");
+    else if (key === "beerGardens") types.add("beer garden");
+    else if (key === "openingHours") types.add("opening hours");
+  }
+  return [...types];
+};
+
 router.get(
   "/contributions",
   authMiddleware,
@@ -450,7 +471,7 @@ router.get(
     try {
       const userId = req.user.userId;
 
-      const [totalAdded, recentPubs] = await Promise.all([
+      const [totalAdded, recentPubs, totalEdited, recentAuditLogs] = await Promise.all([
         prisma.pub.count({ where: { createdById: userId } }),
         prisma.pub.findMany({
           where: { createdById: userId },
@@ -458,9 +479,32 @@ router.get(
           orderBy: { createdAt: "desc" },
           take: 10,
         }),
+        prisma.auditLog.count({ where: { action: "UPDATE", entity: "Pub", userId } }),
+        prisma.auditLog.findMany({
+          where: { action: "UPDATE", entity: "Pub", userId },
+          orderBy: { timestamp: "desc" },
+          take: 10,
+        }),
       ]);
 
-      res.json({ totalAdded, recentPubs });
+      const pubIds = [...new Set(recentAuditLogs.map((log) => log.entityId))];
+      const editedPubs = pubIds.length
+        ? await prisma.pub.findMany({
+            where: { id: { in: pubIds } },
+            select: { id: true, name: true, city: true },
+          })
+        : [];
+      const pubMap = new Map(editedPubs.map((p) => [p.id, p]));
+
+      const recentEdits = recentAuditLogs.map((log) => ({
+        pubId: log.entityId,
+        pubName: pubMap.get(log.entityId)?.name ?? null,
+        city: pubMap.get(log.entityId)?.city ?? null,
+        timestamp: log.timestamp,
+        editTypes: categorizeEditTypes((log.newValues as Record<string, unknown>) ?? {}),
+      }));
+
+      res.json({ totalAdded, recentPubs, totalEdited, recentEdits });
     } catch (error) {
       console.error("Contributions error:", error);
       res.status(500).json({

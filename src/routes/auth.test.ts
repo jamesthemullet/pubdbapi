@@ -1,7 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import router from "./auth";
+import router, { categorizeEditTypes } from "./auth";
 import { prisma } from "../prisma";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
@@ -27,6 +27,10 @@ vi.mock("../prisma", () => ({
       findFirst: vi.fn(),
     },
     pub: {
+      count: vi.fn(),
+      findMany: vi.fn(),
+    },
+    auditLog: {
       count: vi.fn(),
       findMany: vi.fn(),
     },
@@ -106,6 +110,8 @@ const mockedPubCount = prisma.pub.count as unknown as ReturnType<typeof vi.fn>;
 const mockedPubFindMany = prisma.pub.findMany as unknown as ReturnType<
   typeof vi.fn
 >;
+const mockedAuditLogCount = prisma.auditLog.count as unknown as ReturnType<typeof vi.fn>;
+const mockedAuditLogFindMany = prisma.auditLog.findMany as unknown as ReturnType<typeof vi.fn>;
 const mockedTransaction = prisma.$transaction as unknown as ReturnType<
   typeof vi.fn
 >;
@@ -1067,10 +1073,52 @@ describe("GET /auth/dashboard", () => {
   });
 });
 
+describe("categorizeEditTypes", () => {
+  it("categorizes address fields", () => {
+    expect(categorizeEditTypes({ address: "1 New St", postcode: "E1 1AA" })).toEqual(["address"]);
+  });
+
+  it("categorizes feature fields", () => {
+    expect(categorizeEditTypes({ hasFood: true, isDogFriendly: false })).toEqual(["features"]);
+  });
+
+  it("categorizes detail fields", () => {
+    expect(categorizeEditTypes({ name: "New Name", website: "https://example.com" })).toEqual(["details"]);
+  });
+
+  it("categorizes beer types", () => {
+    expect(categorizeEditTypes({ beerTypes: [] })).toEqual(["beer types"]);
+  });
+
+  it("categorizes beer garden", () => {
+    expect(categorizeEditTypes({ beerGardens: [] })).toEqual(["beer garden"]);
+  });
+
+  it("categorizes opening hours", () => {
+    expect(categorizeEditTypes({ openingHours: {} })).toEqual(["opening hours"]);
+  });
+
+  it("returns multiple categories for mixed changes", () => {
+    const result = categorizeEditTypes({ address: "1 New St", hasFood: true, beerTypes: [] });
+    expect(result).toEqual(expect.arrayContaining(["address", "features", "beer types"]));
+    expect(result).toHaveLength(3);
+  });
+
+  it("returns empty array for unknown fields", () => {
+    expect(categorizeEditTypes({ someUnknownField: "value" })).toEqual([]);
+  });
+
+  it("returns empty array for empty object", () => {
+    expect(categorizeEditTypes({})).toEqual([]);
+  });
+});
+
 describe("GET /auth/contributions", () => {
   beforeEach(() => {
     mockedPubCount.mockReset();
     mockedPubFindMany.mockReset();
+    mockedAuditLogCount.mockReset();
+    mockedAuditLogFindMany.mockReset();
     mockedUserFindUnique.mockReset();
   });
 
@@ -1079,7 +1127,7 @@ describe("GET /auth/contributions", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns totalAdded and recentPubs for an authenticated user", async () => {
+  it("returns totalAdded, recentPubs, totalEdited and recentEdits for an authenticated user", async () => {
     const token = jwt.sign(
       { userId: "user_1", email: "jane@example.com" },
       process.env.JWT_SECRET as string,
@@ -1087,16 +1135,21 @@ describe("GET /auth/contributions", () => {
     );
 
     const recentPubs = [
+      { id: "pub_1", name: "The Test Pub", city: "London", createdAt: new Date("2026-01-01") },
+    ];
+    const auditLogs = [
       {
-        id: "pub_1",
-        name: "The Test Pub",
-        city: "London",
-        createdAt: new Date("2026-01-01"),
+        entityId: "pub_2",
+        timestamp: new Date("2026-03-01"),
+        newValues: { address: "1 New Street", hasFood: true },
       },
     ];
+    const editedPubs = [{ id: "pub_2", name: "The Edited Pub", city: "Manchester" }];
 
     mockedPubCount.mockResolvedValueOnce(1);
-    mockedPubFindMany.mockResolvedValueOnce(recentPubs);
+    mockedPubFindMany.mockResolvedValueOnce(recentPubs).mockResolvedValueOnce(editedPubs);
+    mockedAuditLogCount.mockResolvedValueOnce(1);
+    mockedAuditLogFindMany.mockResolvedValueOnce(auditLogs);
 
     const response = await request(app)
       .get("/auth/contributions")
@@ -1105,10 +1158,14 @@ describe("GET /auth/contributions", () => {
     expect(response.status).toBe(200);
     expect(response.body.totalAdded).toBe(1);
     expect(response.body.recentPubs).toHaveLength(1);
-    expect(response.body.recentPubs[0].name).toBe("The Test Pub");
+    expect(response.body.totalEdited).toBe(1);
+    expect(response.body.recentEdits).toHaveLength(1);
+    expect(response.body.recentEdits[0].pubId).toBe("pub_2");
+    expect(response.body.recentEdits[0].pubName).toBe("The Edited Pub");
+    expect(response.body.recentEdits[0].editTypes).toEqual(expect.arrayContaining(["address", "features"]));
   });
 
-  it("returns empty contributions when user has created no pubs", async () => {
+  it("returns empty contributions when user has no created or edited pubs", async () => {
     const token = jwt.sign(
       { userId: "user_1", email: "jane@example.com" },
       process.env.JWT_SECRET as string,
@@ -1117,13 +1174,15 @@ describe("GET /auth/contributions", () => {
 
     mockedPubCount.mockResolvedValueOnce(0);
     mockedPubFindMany.mockResolvedValueOnce([]);
+    mockedAuditLogCount.mockResolvedValueOnce(0);
+    mockedAuditLogFindMany.mockResolvedValueOnce([]);
 
     const response = await request(app)
       .get("/auth/contributions")
       .set("Authorization", `Bearer ${token}`);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ totalAdded: 0, recentPubs: [] });
+    expect(response.body).toEqual({ totalAdded: 0, recentPubs: [], totalEdited: 0, recentEdits: [] });
   });
 
   it("returns 500 on database error", async () => {
