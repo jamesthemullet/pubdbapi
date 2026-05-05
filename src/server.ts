@@ -9,6 +9,7 @@ import { prisma } from "./prisma";
 import authRoutes from "./routes/auth";
 import pubRoutes from "./routes/pubs";
 import publicRoutes from "./routes/public";
+import contributorsRoutes from "./routes/contributors";
 import paymentsRoutes from "./routes/payments";
 
 dotenv.config();
@@ -27,6 +28,7 @@ app.use("/auth", authRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/pubs", pubRoutes);
 app.use("/api/v1", publicRoutes);
+app.use("/api/v1/contributors", contributorsRoutes);
 app.use("/payments", paymentsRoutes);
 
 app.get("/health", (req, res) => {

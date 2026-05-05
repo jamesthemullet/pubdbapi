@@ -448,6 +448,8 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       "GET /api/v1/beer-types": "Get available beer types",
       "GET /api/v1/filters":
         "Get available filter values for cities, operators, etc.",
+      "GET /api/v1/contributors/leaderboard":
+        "Get ranked list of top contributors by pubs added and edits made",
       "GET /api/v1/usage": "Get your current quota usage and remaining limits",
       "GET /api/v1/info": "Get API information",
     },
