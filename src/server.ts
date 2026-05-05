@@ -24,6 +24,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes);
 app.use("/pubs", pubRoutes);
 app.use("/api/v1", publicRoutes);
 app.use("/payments", paymentsRoutes);

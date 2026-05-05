@@ -32,7 +32,11 @@
       "Bash(gh issue *)",
       "Bash(gh label *)",
       "Bash(node -e \"require\\('qs'\\)\")",
-      "Bash(yarn vitest *)"
+      "Bash(yarn vitest *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\james\\\\Documents\\\\GitHub\\\\pub-api\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npx prisma *)"
     ]
   }
 }

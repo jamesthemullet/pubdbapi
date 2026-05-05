@@ -37,10 +37,13 @@ model Pub {
   phone        String?
   borough      String?
   openingHours Json?
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id])
   beerGardens  BeerGarden[]
   beerTypes    PubBeerType[]
 
   @@index([city])
+  @@index([createdById])
   @@index([operator])
   @@index([borough])
   @@index([area])
@@ -122,6 +125,7 @@ model User {
   
   accounts                                     Account[]
   apiKeys                                      ApiKey[]
+  createdPubs                                  Pub[]
   ApiKeyRequest_ApiKeyRequest_reviewedByToUser ApiKeyRequest[]     @relation("ApiKeyRequest_reviewedByToUser")
   ApiKeyRequest_ApiKeyRequest_userIdToUser     ApiKeyRequest[]     @relation("ApiKeyRequest_userIdToUser")
   auditLogs                                    AuditLog[]

@@ -441,4 +441,35 @@ router.get(
   }
 );
 
+router.get(
+  "/contributions",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const userId = req.user.userId;
+
+      const [totalAdded, recentPubs] = await Promise.all([
+        prisma.pub.count({ where: { createdById: userId } }),
+        prisma.pub.findMany({
+          where: { createdById: userId },
+          select: { id: true, name: true, city: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        }),
+      ]);
+
+      res.json({ totalAdded, recentPubs });
+    } catch (error) {
+      console.error("Contributions error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to load contributions",
+      });
+    }
+  }
+);
+
 export default router;
