@@ -26,6 +26,10 @@ vi.mock("../prisma", () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
     },
+    pub: {
+      count: vi.fn(),
+      findMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -96,6 +100,10 @@ const mockedApiKeyFindMany = prisma.apiKey.findMany as unknown as ReturnType<
   typeof vi.fn
 >;
 const mockedApiKeyFindFirst = prisma.apiKey.findFirst as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockedPubCount = prisma.pub.count as unknown as ReturnType<typeof vi.fn>;
+const mockedPubFindMany = prisma.pub.findMany as unknown as ReturnType<
   typeof vi.fn
 >;
 const mockedTransaction = prisma.$transaction as unknown as ReturnType<
@@ -1055,6 +1063,87 @@ describe("GET /auth/dashboard", () => {
       success: false,
       error: "Internal server error",
       message: "Failed to load dashboard data",
+    });
+  });
+});
+
+describe("GET /auth/contributions", () => {
+  beforeEach(() => {
+    mockedPubCount.mockReset();
+    mockedPubFindMany.mockReset();
+    mockedUserFindUnique.mockReset();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const response = await request(app).get("/auth/contributions");
+    expect(response.status).toBe(401);
+  });
+
+  it("returns totalAdded and recentPubs for an authenticated user", async () => {
+    const token = jwt.sign(
+      { userId: "user_1", email: "jane@example.com" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    const recentPubs = [
+      {
+        id: "pub_1",
+        name: "The Test Pub",
+        city: "London",
+        createdAt: new Date("2026-01-01"),
+      },
+    ];
+
+    mockedPubCount.mockResolvedValueOnce(1);
+    mockedPubFindMany.mockResolvedValueOnce(recentPubs);
+
+    const response = await request(app)
+      .get("/auth/contributions")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.totalAdded).toBe(1);
+    expect(response.body.recentPubs).toHaveLength(1);
+    expect(response.body.recentPubs[0].name).toBe("The Test Pub");
+  });
+
+  it("returns empty contributions when user has created no pubs", async () => {
+    const token = jwt.sign(
+      { userId: "user_1", email: "jane@example.com" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    mockedPubCount.mockResolvedValueOnce(0);
+    mockedPubFindMany.mockResolvedValueOnce([]);
+
+    const response = await request(app)
+      .get("/auth/contributions")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ totalAdded: 0, recentPubs: [] });
+  });
+
+  it("returns 500 on database error", async () => {
+    const token = jwt.sign(
+      { userId: "user_1", email: "jane@example.com" },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "1h" }
+    );
+
+    mockedPubCount.mockRejectedValueOnce(new Error("db failure"));
+
+    const response = await request(app)
+      .get("/auth/contributions")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      success: false,
+      error: "Internal server error",
+      message: "Failed to load contributions",
     });
   });
 });

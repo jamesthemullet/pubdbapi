@@ -349,7 +349,9 @@ describe("POST /pubs", () => {
         ],
       },
     });
-    expect(mockedCreate).toHaveBeenCalledWith({ data: pubData });
+    expect(mockedCreate).toHaveBeenCalledWith({
+      data: { ...pubData, createdById: "test-user-id" },
+    });
   });
 
   it("returns 409 when pub with same name and location exists", async () => {

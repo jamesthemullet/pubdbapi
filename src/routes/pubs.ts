@@ -135,7 +135,9 @@ router.post(
       });
     }
 
-    const pub = await prisma.pub.create({ data: parsed.data });
+    const pub = await prisma.pub.create({
+      data: { ...parsed.data, createdById: req.user.userId },
+    });
 
     const clientInfo = getClientInfo(req);
     createAuditLog({
@@ -219,6 +221,7 @@ router.patch(
         "id",
         "createdAt",
         "updatedAt",
+        "createdById",
         "beerGardens",
         "beerTypes",
       ];
