@@ -31,6 +31,7 @@ model Pub {
   hasAccessibleToilet Boolean?
   hasLiveSport Boolean?
   hasLiveMusic Boolean?
+  closedDown   Boolean?
   createdAt    DateTime @default(now())
   operator     String?
   area         String?
