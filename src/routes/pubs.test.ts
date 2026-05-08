@@ -227,6 +227,8 @@ describe("GET /pubs", () => {
       hasAccessibleToilet: null,
       hasLiveSport: null,
       hasLiveMusic: null,
+      hasPoolTable: null,
+      hasDartsBoard: null,
     });
   });
 
