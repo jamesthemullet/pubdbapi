@@ -36,7 +36,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\james\\\\Documents\\\\GitHub\\\\pub-api\" -Force)",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(Format-Table -AutoSize)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\james\\\\Documents\\\\GitHub\\\\pub-api\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)"
     ]
   }
 }
