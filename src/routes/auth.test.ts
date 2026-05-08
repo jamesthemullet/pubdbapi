@@ -560,12 +560,14 @@ describe("POST /auth/forgot-api-key", () => {
     mockedApiKeyFindMany.mockResolvedValueOnce([
       {
         id: "key_1",
+        tier: "DEVELOPER",
         usageCount: 10,
         currentMonthUsage: 4,
         monthlyResetDate: futureReset,
       },
       {
         id: "key_2",
+        tier: "DEVELOPER",
         usageCount: 6,
         currentMonthUsage: 3,
         monthlyResetDate: null,
@@ -614,6 +616,7 @@ describe("POST /auth/forgot-api-key", () => {
       where: { userId: "user_1", isActive: true },
       select: {
         id: true,
+        tier: true,
         usageCount: true,
         currentMonthUsage: true,
         monthlyResetDate: true,
@@ -646,6 +649,54 @@ describe("POST /auth/forgot-api-key", () => {
     });
   });
 
+  it("preserves key tier from existing keys even when user subscriptionTier is stale", async () => {
+    const futureReset = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // User record says HOBBY but their actual key is DEVELOPER
+    mockedUserFindUnique.mockResolvedValueOnce({
+      id: "user_3",
+      subscriptionTier: "HOBBY",
+    } as any);
+    mockedApiKeyFindMany.mockResolvedValueOnce([
+      {
+        id: "key_dev",
+        tier: "DEVELOPER",
+        usageCount: 50,
+        currentMonthUsage: 20,
+        monthlyResetDate: futureReset,
+      },
+    ] as any);
+
+    const txCreate = vi.fn().mockResolvedValue({
+      id: "new_key_id",
+      name: "DEVELOPER API Key",
+      keyPrefix: "pk_develope...",
+      tier: "DEVELOPER",
+      keyStatus: "ACTIVE",
+      permissions: ["read:pubs", "location:search"],
+    });
+    const txUsageUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const txDeleteMany = vi.fn().mockResolvedValue({ count: 1 });
+
+    mockedTransaction.mockImplementationOnce(async (callback: any) =>
+      callback({
+        apiKey: { create: txCreate, deleteMany: txDeleteMany },
+        apiKeyUsage: { updateMany: txUsageUpdateMany },
+      })
+    );
+
+    const response = await request(app).post("/auth/forgot-api-key").send({
+      email: "stale-tier@example.com",
+    });
+
+    expect(response.status).toBe(200);
+    const createdArg = txCreate.mock.calls[0][0];
+    expect(createdArg.data.tier).toBe("DEVELOPER");
+    expect(createdArg.data.requestsPerHour).toBe(1000);
+    expect(createdArg.data.requestsPerDay).toBe(10000);
+    expect(createdArg.data.requestsPerMonth).toBe(100000);
+  });
+
   it("falls back for missing usage, default monthly reset, and unknown tier config", async () => {
     const pastReset = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -656,12 +707,14 @@ describe("POST /auth/forgot-api-key", () => {
     mockedApiKeyFindMany.mockResolvedValueOnce([
       {
         id: "legacy_1",
+        tier: "HOBBY",
         usageCount: null,
         currentMonthUsage: undefined,
         monthlyResetDate: pastReset,
       },
       {
         id: "legacy_2",
+        tier: "HOBBY",
         usageCount: 2,
         currentMonthUsage: null,
         monthlyResetDate: null,

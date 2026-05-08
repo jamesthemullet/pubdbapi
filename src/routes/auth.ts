@@ -213,6 +213,7 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
     where: { userId: user.id, isActive: true },
     select: {
       id: true,
+      tier: true,
       usageCount: true,
       currentMonthUsage: true,
       monthlyResetDate: true,
@@ -240,7 +241,12 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
   )?.monthlyResetDate;
   const monthlyResetDate = monthlyResetDateCandidate || defaultMonthlyReset;
 
-  const tier = (user.subscriptionTier || DEFAULT_TIER) as ApiKeyTier;
+  const TIER_RANK: Record<ApiKeyTier, number> = { HOBBY: 0, DEVELOPER: 1, BUSINESS: 2 };
+  const existingTier = existingKeys.reduce<ApiKeyTier | null>(
+    (best, key) => (best === null || TIER_RANK[key.tier] > TIER_RANK[best] ? key.tier : best),
+    null
+  );
+  const tier = existingTier ?? user.subscriptionTier ?? DEFAULT_TIER;
   const tierLimits = TIER_LIMITS[tier] || TIER_LIMITS[DEFAULT_TIER];
   const permissions =
     API_KEY_PERMISSIONS_BY_TIER[tier] || API_KEY_PERMISSIONS_BY_TIER[DEFAULT_TIER];
