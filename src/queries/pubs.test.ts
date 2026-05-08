@@ -169,6 +169,8 @@ describe("PUB_AMENITY_FIELDS", () => {
       { key: "hasAccessibleToilet", label: "Accessible toilet" },
       { key: "hasLiveSport", label: "Live sport" },
       { key: "hasLiveMusic", label: "Live music" },
+      { key: "hasPoolTable", label: "Pool table" },
+      { key: "hasDartsBoard", label: "Darts board" },
     ]);
   });
 });

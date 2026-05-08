@@ -1,0 +1,2 @@
+ALTER TABLE "Pub" ADD COLUMN "hasPoolTable" BOOLEAN;
+ALTER TABLE "Pub" ADD COLUMN "hasDartsBoard" BOOLEAN;
