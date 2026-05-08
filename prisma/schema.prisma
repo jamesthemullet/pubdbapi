@@ -33,6 +33,7 @@ model Pub {
   hasLiveMusic Boolean?
   hasPoolTable Boolean?
   hasDartsBoard Boolean?
+  closedDown   Boolean?
   createdAt    DateTime @default(now())
   operator     String?
   area         String?
