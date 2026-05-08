@@ -19,6 +19,7 @@ import { prisma } from "../prisma";
 import {
   listPubs,
   getPubById,
+  getRandomPub,
   parsePagination,
   PubListFilters,
   PUB_AMENITY_FIELDS,
@@ -98,6 +99,41 @@ router.get("/", async (req, res) => {
       ...amenityFilters,
     },
   });
+});
+
+router.get("/random", async (req, res) => {
+  const { city, name, operator, borough, postcode, area, country, search } =
+    req.query;
+
+  const amenityQuery =
+    req.query.amenities &&
+    typeof req.query.amenities === "object" &&
+    !Array.isArray(req.query.amenities)
+      ? (req.query.amenities as Record<string, unknown>)
+      : {};
+
+  const amenities: PubListFilters["amenities"] = {};
+  for (const { key } of PUB_AMENITY_FIELDS) {
+    const raw = amenityQuery[key];
+    if (raw === "true") amenities[key] = true;
+    else if (raw === "false") amenities[key] = false;
+  }
+
+  const filters: PubListFilters = {
+    city: city ? String(city) : undefined,
+    name: name ? String(name) : undefined,
+    operator: operator ? String(operator) : undefined,
+    borough: borough ? String(borough) : undefined,
+    postcode: postcode ? String(postcode) : undefined,
+    area: area ? String(area) : undefined,
+    country: country ? String(country) : undefined,
+    search: search ? String(search) : undefined,
+    amenities: Object.keys(amenities).length > 0 ? amenities : undefined,
+  };
+
+  const pub = await getRandomPub(filters);
+  if (!pub) return res.status(404).json({ message: "No pubs found" });
+  res.json({ success: true, data: pub });
 });
 
 router.get("/:id", async (req, res) => {

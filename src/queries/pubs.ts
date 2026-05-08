@@ -116,6 +116,23 @@ export async function listPubs(
   return { pubs, total };
 }
 
+export async function getRandomPub(filters: PubListFilters) {
+  const where = buildPubWhereClause(filters);
+  const count = await prisma.pub.count({ where });
+  if (count === 0) return null;
+  const skip = Math.floor(Math.random() * count);
+  const results = await prisma.pub.findMany({
+    where,
+    skip,
+    take: 1,
+    include: {
+      beerGardens: true,
+      beerTypes: { include: { beerType: true } },
+    },
+  });
+  return results[0] ?? null;
+}
+
 export async function getPubById(id: string) {
   return prisma.pub.findUnique({
     where: { id },
