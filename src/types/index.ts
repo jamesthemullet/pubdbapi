@@ -94,6 +94,8 @@ export const pubSchema = z.object({
   hasAccessibleToilet: z.boolean().optional(),
   hasLiveSport: z.boolean().optional(),
   hasLiveMusic: z.boolean().optional(),
+  hasPoolTable: z.boolean().optional(),
+  hasDartsBoard: z.boolean().optional(),
   closedDown: z.boolean().optional(),
   openingHours: z
     .record(
