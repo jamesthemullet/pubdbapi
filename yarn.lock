@@ -2514,12 +2514,12 @@ require-from-string@^2.0.2:
   integrity sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==
 
 resend@^6.0.0:
-  version "6.12.3"
-  resolved "https://registry.yarnpkg.com/resend/-/resend-6.12.3.tgz#d4e180f21c9edb21db074d48766e84866551313c"
-  integrity sha512-FkEi6YPnVL96/LvH8+QP7NaeaBy5brYXwlRqUCqZZeNL0/iyKij18IPmyPXYauT/2ODn1JG04qKz+qlJfzqzTw==
+  version "6.12.4"
+  resolved "https://registry.yarnpkg.com/resend/-/resend-6.12.4.tgz#37585aff359704f6434d529e6b84924f0786d86d"
+  integrity sha512-lRpJ2Hxd+ht+JPDm97juRcUp9HOMuZyxaRFRFmc9Tx8iNWiei94Dx9v6SWufgKk2667C/uCeKKspMotOHSpCSg==
   dependencies:
     postal-mime "2.7.4"
-    svix "1.92.2"
+    standardwebhooks "1.0.0"
 
 resolve-pkg-maps@^1.0.0:
   version "1.0.0"
@@ -2797,13 +2797,6 @@ supports-color@^7.1.0:
   integrity sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==
   dependencies:
     has-flag "^4.0.0"
-
-svix@1.92.2:
-  version "1.92.2"
-  resolved "https://registry.yarnpkg.com/svix/-/svix-1.92.2.tgz#2982904b032e24347b701cab3d5219ea94d9e49c"
-  integrity sha512-ZmuA3UVvlnF9EgxlzmPtF7CKjQb64Z6OFlyfdDfU0sdcC7dJa+3aOYX5B9mA+RS6ch1AxBa4UP/l6KmqfGtWBQ==
-  dependencies:
-    standardwebhooks "1.0.0"
 
 tinybench@^2.9.0:
   version "2.9.0"
