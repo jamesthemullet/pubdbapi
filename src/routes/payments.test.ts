@@ -24,6 +24,9 @@ const testState = vi.hoisted(() => ({
     checkoutSessionsRetrieve: vi.fn(),
     subscriptionsRetrieve: vi.fn(),
     subscriptionsUpdate: vi.fn(),
+    customersRetrieve: vi.fn(),
+    invoicesCreatePreview: vi.fn(),
+    invoicesList: vi.fn(),
   },
   stripeRawRequest: vi.fn(),
 }));
@@ -55,6 +58,13 @@ vi.mock("stripe", () => ({
       subscriptions: {
         retrieve: testState.stripe.subscriptionsRetrieve,
         update: testState.stripe.subscriptionsUpdate,
+      },
+      customers: {
+        retrieve: testState.stripe.customersRetrieve,
+      },
+      invoices: {
+        createPreview: testState.stripe.invoicesCreatePreview,
+        list: testState.stripe.invoicesList,
       },
     };
   }),
@@ -98,6 +108,12 @@ const mockedStripeRawRequest =
   testState.stripeRawRequest as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyFindMany = testState.prisma.apiKey
   .findMany as unknown as ReturnType<typeof vi.fn>;
+const mockedCustomersRetrieve = testState.stripe
+  .customersRetrieve as unknown as ReturnType<typeof vi.fn>;
+const mockedInvoicesCreatePreview = testState.stripe
+  .invoicesCreatePreview as unknown as ReturnType<typeof vi.fn>;
+const mockedInvoicesList = testState.stripe
+  .invoicesList as unknown as ReturnType<typeof vi.fn>;
 
 describe("POST /payments/subscribe-to-hobby", () => {
   beforeEach(() => {
@@ -1149,6 +1165,336 @@ describe("POST /payments/cancel-subscription", () => {
     );
 
     const response = await request(app).post("/payments/cancel-subscription");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Something went wrong" });
+  });
+});
+
+describe("GET /payments/billing", () => {
+  const baseUser = {
+    stripeCustomerId: "cus_123",
+    stripeSubscriptionId: "sub_123",
+    subscriptionTier: "DEVELOPER",
+    subscriptionStatus: "ACTIVE",
+    subscriptionEndDate: null,
+  };
+
+  const baseCustomer = {
+    deleted: false,
+    name: "James Winfield",
+    email: "james@example.com",
+    phone: null,
+    address: {
+      city: "London",
+      country: "GB",
+      line1: "123 Pub Lane",
+      line2: null,
+      postal_code: "SW1 1AA",
+      state: null,
+    },
+    invoice_settings: {
+      default_payment_method: null,
+    },
+  };
+
+  const baseSubscription = {
+    status: "active",
+    default_payment_method: {
+      card: { brand: "visa", exp_month: 12, exp_year: 2027, funding: "credit" },
+    },
+    cancel_at_period_end: false,
+    current_period_end: 1780000000,
+    items: {
+      data: [{ plan: { amount: 1999, currency: "gbp", interval: "month" } }],
+    },
+  };
+
+  const baseUpcoming = {
+    amount_due: 1999,
+    currency: "gbp",
+    next_payment_attempt: 1780000000,
+  };
+
+  const baseInvoiceList = {
+    data: [
+      {
+        created: 1760000000,
+        amount_paid: 1999,
+        currency: "gbp",
+        status: "paid",
+        description: null,
+        lines: { data: [{ description: "DEVELOPER plan" }] },
+        invoice_pdf: "https://invoice.stripe.com/i/in_001.pdf",
+        hosted_invoice_url: "https://invoice.stripe.com/i/in_001",
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    testState.authUser = { userId: "test-user-id", email: "test@example.com" };
+    mockedUserFindUnique.mockReset();
+    mockedSubscriptionsRetrieve.mockReset();
+    mockedCustomersRetrieve.mockReset();
+    mockedInvoicesCreatePreview.mockReset();
+    mockedInvoicesList.mockReset();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    testState.authUser = null;
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Not authenticated" });
+    expect(mockedUserFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when user is not found", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(null);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "User not found" });
+  });
+
+  it("returns HOBBY response without calling Stripe when no customer ID", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce({
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionTier: "HOBBY",
+      subscriptionStatus: "ACTIVE",
+      subscriptionEndDate: null,
+    });
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      plan: { tier: "HOBBY", price: 0, currency: "gbp", interval: null },
+      status: "ACTIVE",
+      stripeCustomerId: null,
+      billingDetails: null,
+      paymentMethod: null,
+      upcomingInvoice: null,
+      invoices: [],
+    });
+    expect(mockedCustomersRetrieve).not.toHaveBeenCalled();
+    expect(mockedSubscriptionsRetrieve).not.toHaveBeenCalled();
+  });
+
+  it("returns full billing data for a paid subscriber", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+
+    expect(response.body.plan).toEqual({
+      tier: "DEVELOPER",
+      price: 1999,
+      currency: "gbp",
+      interval: "month",
+    });
+    expect(response.body.status).toBe("ACTIVE");
+    expect(response.body.cancelAtPeriodEnd).toBe(false);
+    expect(response.body.currentPeriodEnd).toBe(
+      new Date(1780000000 * 1000).toISOString()
+    );
+    expect(response.body.stripeCustomerId).toBe("cus_123");
+
+    expect(response.body.billingDetails).toEqual({
+      name: "James Winfield",
+      email: "james@example.com",
+      phone: null,
+      address: {
+        city: "London",
+        country: "GB",
+        line1: "123 Pub Lane",
+        line2: null,
+        postal_code: "SW1 1AA",
+        state: null,
+      },
+    });
+
+    expect(response.body.paymentMethod).toEqual({
+      brand: "visa",
+      expMonth: 12,
+      expYear: 2027,
+      funding: "credit",
+    });
+
+    expect(response.body.upcomingInvoice).toEqual({
+      amount: 1999,
+      currency: "gbp",
+      dueDate: new Date(1780000000 * 1000).toISOString(),
+    });
+
+    expect(response.body.invoices).toHaveLength(1);
+    expect(response.body.invoices[0]).toEqual({
+      date: new Date(1760000000 * 1000).toISOString(),
+      amount: 1999,
+      currency: "gbp",
+      status: "paid",
+      description: "DEVELOPER plan",
+      pdfUrl: "https://invoice.stripe.com/i/in_001.pdf",
+      hostedUrl: "https://invoice.stripe.com/i/in_001",
+    });
+  });
+
+  it("falls back to customer invoice_settings payment method when subscription has none", async () => {
+    const pm = {
+      card: { brand: "mastercard", exp_month: 6, exp_year: 2026, funding: "debit" },
+    };
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce({
+      ...baseCustomer,
+      invoice_settings: { default_payment_method: pm },
+    });
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+      ...baseSubscription,
+      default_payment_method: null,
+    });
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.paymentMethod).toEqual({
+      brand: "mastercard",
+      expMonth: 6,
+      expYear: 2026,
+      funding: "debit",
+    });
+  });
+
+  it("returns null paymentMethod when payment method is an unexpanded string ID", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+      ...baseSubscription,
+      default_payment_method: "pm_unexpanded_string",
+    });
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.paymentMethod).toBeNull();
+  });
+
+  it("returns null paymentMethod when no payment method exists", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+      ...baseSubscription,
+      default_payment_method: null,
+    });
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.paymentMethod).toBeNull();
+  });
+
+  it("returns null billingDetails when customer is deleted", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce({ deleted: true });
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.billingDetails).toBeNull();
+  });
+
+  it("returns null upcomingInvoice when createPreview fails", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+    mockedInvoicesCreatePreview.mockRejectedValueOnce(new Error("no upcoming invoice"));
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upcomingInvoice).toBeNull();
+  });
+
+  it("uses invoice description field when lines description is absent", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce({
+      data: [
+        {
+          ...baseInvoiceList.data[0],
+          description: "Manual invoice",
+          lines: { data: [] },
+        },
+      ],
+    });
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.invoices[0].description).toBe("Manual invoice");
+  });
+
+  it("returns null dueDate when next_payment_attempt is null", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+    mockedInvoicesCreatePreview.mockResolvedValueOnce({
+      ...baseUpcoming,
+      next_payment_attempt: null,
+    });
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.upcomingInvoice.dueDate).toBeNull();
+  });
+
+  it("reflects cancelAtPeriodEnd and currentPeriodEnd from subscription", async () => {
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+      ...baseSubscription,
+      cancel_at_period_end: true,
+      current_period_end: 1790000000,
+    });
+    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+
+    const response = await request(app).get("/payments/billing");
+
+    expect(response.status).toBe(200);
+    expect(response.body.cancelAtPeriodEnd).toBe(true);
+    expect(response.body.currentPeriodEnd).toBe(
+      new Date(1790000000 * 1000).toISOString()
+    );
+  });
+
+  it("returns 500 when Stripe calls fail", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+    mockedCustomersRetrieve.mockRejectedValueOnce(new Error("stripe down"));
+
+    const response = await request(app).get("/payments/billing");
 
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ error: "Something went wrong" });
