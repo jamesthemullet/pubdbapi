@@ -1,5 +1,7 @@
 import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { authMiddleware } from "../middleware/auth";
 import {
   createAuditLog,
@@ -27,7 +29,30 @@ import {
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+const frontendOrigins = [
+  /^https:\/\/pubdb-fe\.vercel\.app$/,
+  /^https:\/\/pubdb-[a-z0-9]+-james-winfields-projects\.vercel\.app$/,
+  /^http:\/\/localhost(:\d+)?$/,
+];
+
+const frontendCors = cors({
+  origin: (origin, callback) => {
+    if (!origin || frontendOrigins.some((pattern) => pattern.test(origin))) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS"));
+  },
+});
+
+const frontendRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+
+router.get("/", frontendCors, frontendRateLimit, async (req, res) => {
   const {
     city,
     name,
@@ -101,7 +126,7 @@ router.get("/", async (req, res) => {
   });
 });
 
-router.get("/random", async (req, res) => {
+router.get("/random", frontendCors, frontendRateLimit, async (req, res) => {
   const { city, name, operator, borough, postcode, area, country, search } =
     req.query;
 
@@ -136,8 +161,8 @@ router.get("/random", async (req, res) => {
   res.json({ success: true, data: pub });
 });
 
-router.get("/:id", async (req, res) => {
-  const { id } = req.params;
+router.get("/:id", frontendCors, frontendRateLimit, async (req, res) => {
+  const id = req.params.id as string;
   const pub = await getPubById(id);
   if (!pub) return res.status(404).json({ message: "Pub not found" });
   res.json(pub);
