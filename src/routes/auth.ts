@@ -241,53 +241,61 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
   )?.monthlyResetDate;
   const monthlyResetDate = monthlyResetDateCandidate || defaultMonthlyReset;
 
-  const TIER_RANK: Record<ApiKeyTier, number> = { HOBBY: 0, DEVELOPER: 1, BUSINESS: 2 };
+  const TIER_RANK: Record<ApiKeyTier, number> = {
+    HOBBY: 0,
+    DEVELOPER: 1,
+    BUSINESS: 2,
+  };
   const existingTier = existingKeys.reduce<ApiKeyTier | null>(
-    (best, key) => (best === null || TIER_RANK[key.tier] > TIER_RANK[best] ? key.tier : best),
+    (best, key) =>
+      best === null || TIER_RANK[key.tier] > TIER_RANK[best] ? key.tier : best,
     null
   );
   const tier = existingTier ?? user.subscriptionTier ?? DEFAULT_TIER;
   const tierLimits = TIER_LIMITS[tier] || TIER_LIMITS[DEFAULT_TIER];
   const permissions =
-    API_KEY_PERMISSIONS_BY_TIER[tier] || API_KEY_PERMISSIONS_BY_TIER[DEFAULT_TIER];
+    API_KEY_PERMISSIONS_BY_TIER[tier] ||
+    API_KEY_PERMISSIONS_BY_TIER[DEFAULT_TIER];
 
   const fullKey = `pk_${tier.toLowerCase()}_${crypto
     .randomBytes(24)
     .toString("hex")}`;
   const keyPrefix = `${fullKey.substring(0, 12)}...`;
   const keyHash = crypto.createHash("sha256").update(fullKey).digest("hex");
-  const apiKey = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const createdKey = await tx.apiKey.create({
-      data: {
-        name: `${tier} API Key`,
-        keyHash,
-        keyPrefix,
-        userId: user.id,
-        tier,
-        keyStatus: "ACTIVE",
-        requestsPerHour: tierLimits.requestsPerHour,
-        requestsPerDay: tierLimits.requestsPerDay,
-        requestsPerMonth: tierLimits.requestsPerMonth,
-        permissions,
-        monthlyResetDate,
-        usageCount: aggregatedUsageCount,
-        currentMonthUsage: aggregatedCurrentMonthUsage,
-      },
-    });
-
-    if (keyIds.length) {
-      await tx.apiKeyUsage.updateMany({
-        where: { apiKeyId: { in: keyIds } },
-        data: { apiKeyId: createdKey.id },
+  const apiKey = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const createdKey = await tx.apiKey.create({
+        data: {
+          name: `${tier} API Key`,
+          keyHash,
+          keyPrefix,
+          userId: user.id,
+          tier,
+          keyStatus: "ACTIVE",
+          requestsPerHour: tierLimits.requestsPerHour,
+          requestsPerDay: tierLimits.requestsPerDay,
+          requestsPerMonth: tierLimits.requestsPerMonth,
+          permissions,
+          monthlyResetDate,
+          usageCount: aggregatedUsageCount,
+          currentMonthUsage: aggregatedCurrentMonthUsage,
+        },
       });
 
-      await tx.apiKey.deleteMany({
-        where: { id: { in: keyIds } },
-      });
+      if (keyIds.length) {
+        await tx.apiKeyUsage.updateMany({
+          where: { apiKeyId: { in: keyIds } },
+          data: { apiKeyId: createdKey.id },
+        });
+
+        await tx.apiKey.deleteMany({
+          where: { id: { in: keyIds } },
+        });
+      }
+
+      return createdKey;
     }
-
-    return createdKey;
-  });
+  );
 
   res.json({
     message: "A new API key has been generated.",
@@ -447,15 +455,43 @@ router.get(
   }
 );
 
-const ADDRESS_FIELDS = new Set(["address", "postcode", "city", "country", "lat", "lng", "area", "borough"]);
-const FEATURE_FIELDS = new Set([
-  "hasFood", "hasSundayRoast", "hasBeerGarden", "hasCaskAle", "isBeerFocused",
-  "isDogFriendly", "isFamilyFriendly", "hasStepFreeAccess", "hasAccessibleToilet",
-  "hasLiveSport", "hasLiveMusic",
+const ADDRESS_FIELDS = new Set([
+  "address",
+  "postcode",
+  "city",
+  "country",
+  "lat",
+  "lng",
+  "area",
+  "borough",
 ]);
-const DETAIL_FIELDS = new Set(["name", "description", "website", "phone", "chainName", "operator", "isIndependent", "imageUrl"]);
+const FEATURE_FIELDS = new Set([
+  "hasFood",
+  "hasSundayRoast",
+  "hasBeerGarden",
+  "hasCaskAle",
+  "isBeerFocused",
+  "isDogFriendly",
+  "isFamilyFriendly",
+  "hasStepFreeAccess",
+  "hasAccessibleToilet",
+  "hasLiveSport",
+  "hasLiveMusic",
+]);
+const DETAIL_FIELDS = new Set([
+  "name",
+  "description",
+  "website",
+  "phone",
+  "chainName",
+  "operator",
+  "isIndependent",
+  "imageUrl",
+]);
 
-export const categorizeEditTypes = (newValues: Record<string, unknown>): string[] => {
+export const categorizeEditTypes = (
+  newValues: Record<string, unknown>
+): string[] => {
   const types = new Set<string>();
   for (const key of Object.keys(newValues)) {
     if (ADDRESS_FIELDS.has(key)) types.add("address");
@@ -477,21 +513,24 @@ router.get(
     try {
       const userId = req.user.userId;
 
-      const [totalAdded, recentPubs, totalEdited, recentAuditLogs] = await Promise.all([
-        prisma.pub.count({ where: { createdById: userId } }),
-        prisma.pub.findMany({
-          where: { createdById: userId },
-          select: { id: true, name: true, city: true, createdAt: true },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-        }),
-        prisma.auditLog.count({ where: { action: "UPDATE", entity: "Pub", userId } }),
-        prisma.auditLog.findMany({
-          where: { action: "UPDATE", entity: "Pub", userId },
-          orderBy: { timestamp: "desc" },
-          take: 10,
-        }),
-      ]);
+      const [totalAdded, recentPubs, totalEdited, recentAuditLogs] =
+        await Promise.all([
+          prisma.pub.count({ where: { createdById: userId } }),
+          prisma.pub.findMany({
+            where: { createdById: userId },
+            select: { id: true, name: true, city: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+          prisma.auditLog.count({
+            where: { action: "UPDATE", entity: "Pub", userId },
+          }),
+          prisma.auditLog.findMany({
+            where: { action: "UPDATE", entity: "Pub", userId },
+            orderBy: { timestamp: "desc" },
+            take: 10,
+          }),
+        ]);
 
       const pubIds = [...new Set(recentAuditLogs.map((log) => log.entityId))];
       const editedPubs = pubIds.length
@@ -507,7 +546,9 @@ router.get(
         pubName: pubMap.get(log.entityId)?.name ?? null,
         city: pubMap.get(log.entityId)?.city ?? null,
         timestamp: log.timestamp,
-        editTypes: categorizeEditTypes((log.newValues as Record<string, unknown>) ?? {}),
+        editTypes: categorizeEditTypes(
+          (log.newValues as Record<string, unknown>) ?? {}
+        ),
       }));
 
       res.json({ totalAdded, recentPubs, totalEdited, recentEdits });

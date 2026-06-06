@@ -400,6 +400,22 @@ router.post(
       subscriptionStatus =
         subscription.status === "active" ? "ACTIVE" : "INCOMPLETE";
 
+      await prisma.user.update({
+        where: { id: req.user.userId },
+        data: {
+          stripeCustomerId:
+            typeof session.customer === "string" ? session.customer : null,
+          stripeSubscriptionId:
+            typeof session.subscription === "string"
+              ? session.subscription
+              : null,
+          subscriptionTier,
+          subscriptionStatus,
+          subscriptionStartDate: new Date(),
+          subscriptionEndDate: null,
+        },
+      });
+
       const activeKeys = await prisma.apiKey.findMany({
         where: { userId: req.user.userId, isActive: true },
       });
@@ -537,7 +553,7 @@ type StripeInvoiceItem = {
   currency: string;
   status: string | null;
   description: string | null;
-  lines: { data: Array<{ description: string | null }> };
+  lines: { data: Array<{ description: string | null; period: { start: number; end: number } | null }> };
   invoice_pdf: string | null;
   hosted_invoice_url: string | null;
 };
@@ -557,6 +573,10 @@ router.get(
           subscriptionTier: true,
           subscriptionStatus: true,
           subscriptionEndDate: true,
+          apiKeys: {
+            where: { isActive: true },
+            select: { tier: true },
+          },
         },
       });
 
@@ -581,10 +601,15 @@ router.get(
           stripe.customers.retrieve(user.stripeCustomerId, {
             expand: ["invoice_settings.default_payment_method"],
           }) as Promise<StripeCustomerExpanded>,
-          stripe.subscriptions.retrieve(user.stripeSubscriptionId),
-          (stripe.invoices.createPreview as (
-            params: { customer: string; subscription: string }
-          ) => Promise<StripeUpcomingInvoice>)({
+          stripe.subscriptions.retrieve(user.stripeSubscriptionId, {
+            expand: ["default_payment_method"],
+          }),
+          (
+            stripe.invoices.createPreview as (params: {
+              customer: string;
+              subscription: string;
+            }) => Promise<StripeUpcomingInvoice>
+          )({
             customer: user.stripeCustomerId,
             subscription: user.stripeSubscriptionId,
           }).catch(() => null),
@@ -597,23 +622,28 @@ router.get(
       const plan = subscription.items.data[0]?.plan;
 
       const rawPm =
-        (subscription as { default_payment_method?: StripePaymentMethodExpanded | string | null })
-          .default_payment_method ??
+        (
+          subscription as {
+            default_payment_method?:
+              | StripePaymentMethodExpanded
+              | string
+              | null;
+          }
+        ).default_payment_method ??
         customer.invoice_settings?.default_payment_method ??
         null;
 
       const pm: StripePaymentMethodExpanded | null =
         rawPm && typeof rawPm !== "string" ? rawPm : null;
 
-      const paymentMethod =
-        pm?.card
-          ? {
-              brand: pm.card.brand,
-              expMonth: pm.card.exp_month,
-              expYear: pm.card.exp_year,
-              funding: pm.card.funding,
-            }
-          : null;
+      const paymentMethod = pm?.card
+        ? {
+            brand: pm.card.brand,
+            expMonth: pm.card.exp_month,
+            expYear: pm.card.exp_year,
+            funding: pm.card.funding,
+          }
+        : null;
 
       const billingDetails = customer.deleted
         ? null
@@ -637,6 +667,14 @@ router.get(
         description: inv.description ?? inv.lines.data[0]?.description ?? null,
         pdfUrl: inv.invoice_pdf,
         hostedUrl: inv.hosted_invoice_url,
+        billingPeriod: {
+          start: inv.lines.data[0]?.period?.start
+            ? new Date(inv.lines.data[0].period.start * 1000).toISOString()
+            : null,
+          end: inv.lines.data[0]?.period?.end
+            ? new Date(inv.lines.data[0].period.end * 1000).toISOString()
+            : null,
+        },
       }));
 
       res.json({
