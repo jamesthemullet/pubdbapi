@@ -1344,6 +1344,7 @@ describe("GET /payments/billing", () => {
       description: "DEVELOPER plan",
       pdfUrl: "https://invoice.stripe.com/i/in_001.pdf",
       hostedUrl: "https://invoice.stripe.com/i/in_001",
+      billingPeriod: { start: null, end: null },
     });
   });
 
