@@ -17,7 +17,8 @@ When invoked, make an incremental improvement to test coverage, then run the tes
 3. Read that file and its existing `.test.ts` counterpart (if any).
 4. Add the **minimum tests needed to cover the most important uncovered branches** — don't rewrite existing tests, just add new `it(...)` blocks.
 5. Re-run `yarn test:coverage` to confirm coverage improved and all tests pass.
-6. Report: what you added and the before/after coverage numbers for that file.
+6. Commit the changes and open a PR against `main` with a short description of what was covered and why.
+7. Report: what you added, the before/after coverage numbers for that file, and the PR URL.
 
 ## Current known gaps (as of 2026-04-20, 93.6% overall)
 

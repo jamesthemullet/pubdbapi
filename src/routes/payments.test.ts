@@ -1169,6 +1169,28 @@ describe("POST /payments/cancel-subscription", () => {
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ error: "Something went wrong" });
   });
+
+  it("still returns 200 when apiKey keyStatus update fails but continues", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedUserFindUnique.mockResolvedValueOnce({
+      stripeSubscriptionId: "sub_123",
+    });
+    mockedSubscriptionsUpdate.mockResolvedValueOnce({
+      id: "sub_123",
+      cancel_at_period_end: true,
+      current_period_end: 1738454400,
+    });
+    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+    mockedApiKeyUpdateMany
+      .mockRejectedValueOnce(new Error("db error on keyStatus update"))
+      .mockResolvedValueOnce({ count: 1 });
+
+    const response = await request(app).post("/payments/cancel-subscription");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.subscription.subscriptionId).toBe("sub_123");
+  });
 });
 
 describe("GET /payments/billing", () => {
