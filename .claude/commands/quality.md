@@ -36,7 +36,11 @@ Do **not** flag items in `.test.ts` files unless the issue also affects the sour
 
 Make the fix. Keep scope tight — one issue, one or two files. Do not refactor beyond what is needed to address the specific finding. Run `yarn lint` after editing to confirm no new lint errors are introduced.
 
-### Step 4 — Report
+### Step 4 — Commit and open a PR
+
+Commit the change and open a PR against `main`. The PR title and body should describe the category, the specific issue found, and the fix applied.
+
+### Step 5 — Report
 
 Output exactly this structure:
 
@@ -48,6 +52,7 @@ Output exactly this structure:
 **Issue:** <one sentence describing the problem>
 **Fix:** <what was changed and why>
 **Next suggestion:** <the next candidate worth tackling in this category, with file path>
+**PR:** <URL>
 ```
 
 ## Known project patterns

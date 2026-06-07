@@ -396,7 +396,7 @@ router.get(
         atOrNear80(usage.day, limits.requestsPerDay) ||
         atOrNear80(usage.month, limits.requestsPerMonth);
 
-      const TIER_ORDER: string[] = ["HOBBY", "DEVELOPER", "BUSINESS"];
+      const TIER_ORDER = Object.keys(TIER_LIMITS);
       const nextTier = TIER_ORDER[TIER_ORDER.indexOf(tier) + 1] ?? null;
       const upgradeAvailable = nearLimit && tier !== "BUSINESS";
 
