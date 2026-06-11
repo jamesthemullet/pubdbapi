@@ -24,7 +24,8 @@
     "ts-check": "yarn prisma:generate && tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "lint:errors": "biome check . | findstr error"
+    "lint:errors": "biome check . | findstr error",
+    "knip": "knip"
   },
   "keywords": [],
   "author": "",
