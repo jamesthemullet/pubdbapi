@@ -124,6 +124,18 @@ describe("POST /payments/subscribe-to-hobby", () => {
 
     mockedUserUpdate.mockReset();
     mockedApiKeyCreate.mockReset();
+    mockedApiKeyFindFirst.mockReset();
+  });
+
+  it("returns 409 when user already has a hobby api key", async () => {
+    mockedApiKeyFindFirst.mockResolvedValueOnce({ id: "existing-key-id" } as any);
+
+    const response = await request(app).post("/payments/subscribe-to-hobby");
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "You already have a hobby API key." });
+    expect(mockedUserUpdate).not.toHaveBeenCalled();
+    expect(mockedApiKeyCreate).not.toHaveBeenCalled();
   });
 
   it("returns 401 when user is not authenticated", async () => {
@@ -138,6 +150,8 @@ describe("POST /payments/subscribe-to-hobby", () => {
   });
 
   it("updates subscription and creates hobby api key", async () => {
+    mockedApiKeyFindFirst.mockResolvedValueOnce(null);
+
     mockedUserUpdate.mockResolvedValue({
       id: "test-user-id",
       subscriptionTier: "HOBBY",
@@ -197,6 +211,7 @@ describe("POST /payments/subscribe-to-hobby", () => {
 
   it("returns 500 when user update fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedApiKeyFindFirst.mockResolvedValueOnce(null);
     mockedUserUpdate.mockRejectedValue(new Error("db failure"));
 
     const response = await request(app).post("/payments/subscribe-to-hobby");
