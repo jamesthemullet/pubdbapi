@@ -29,6 +29,15 @@ router.post(
     if (!requireAuth(req, res)) return;
 
     try {
+      const existingKey = await prisma.apiKey.findFirst({
+        where: { userId: req.user.userId, tier: "HOBBY" },
+      });
+
+      if (existingKey) {
+        res.status(409).json({ error: "You already have a hobby API key." });
+        return;
+      }
+
       const hobbySubscriptionData = {
         subscriptionTier: "HOBBY" as const,
         subscriptionStatus: "ACTIVE" as const,
