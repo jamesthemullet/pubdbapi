@@ -34,9 +34,19 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
   },
 };
 
+export interface UsageSnapshot {
+  currentHourUsage: number;
+  hourlyResetDate: Date;
+  currentDayUsage: number;
+  dailyResetDate: Date;
+  currentMonthUsage: number;
+  monthlyResetDate: Date;
+}
+
 export async function checkRateLimit(
   apiKeyId: string,
-  tier: ApiKeyTier
+  tier: ApiKeyTier,
+  snapshot?: UsageSnapshot
 ): Promise<{
   allowed: boolean;
   remaining: { hour: number; day: number; month: number };
@@ -45,7 +55,7 @@ export async function checkRateLimit(
   const limits = TIER_LIMITS[tier];
   const now = new Date();
 
-  const apiKey = await prisma.apiKey.findUnique({
+  const apiKey = snapshot ?? await prisma.apiKey.findUnique({
     where: { id: apiKeyId },
     select: {
       currentHourUsage: true,

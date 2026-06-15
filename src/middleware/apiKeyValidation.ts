@@ -5,6 +5,7 @@ import {
   recordApiUsage,
   TIER_LIMITS,
   TierLimits,
+  UsageSnapshot,
 } from "../utils/rateLimiting";
 import crypto from "crypto";
 import { prisma } from "../prisma";
@@ -56,10 +57,17 @@ export const validateApiKey = async (
         isActive: true,
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
-      include: {
-        user: {
-          select: { id: true, approved: true, admin: true },
-        },
+      select: {
+        id: true,
+        userId: true,
+        tier: true,
+        currentHourUsage: true,
+        hourlyResetDate: true,
+        currentDayUsage: true,
+        dailyResetDate: true,
+        currentMonthUsage: true,
+        monthlyResetDate: true,
+        user: { select: { id: true, approved: true, admin: true } },
       },
     });
 
@@ -80,8 +88,16 @@ export const validateApiKey = async (
       });
     }
 
-    // Check rate limits
-    const rateLimitResult = await checkRateLimit(apiKey.id, apiKey.tier);
+    // Check rate limits using the already-fetched usage fields — no second DB query
+    const usageSnapshot: UsageSnapshot = {
+      currentHourUsage: apiKey.currentHourUsage,
+      hourlyResetDate: apiKey.hourlyResetDate,
+      currentDayUsage: apiKey.currentDayUsage,
+      dailyResetDate: apiKey.dailyResetDate,
+      currentMonthUsage: apiKey.currentMonthUsage,
+      monthlyResetDate: apiKey.monthlyResetDate,
+    };
+    const rateLimitResult = await checkRateLimit(apiKey.id, apiKey.tier, usageSnapshot);
 
     if (!rateLimitResult.allowed) {
       // Still record the usage attempt for analytics
