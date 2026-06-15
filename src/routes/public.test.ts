@@ -567,6 +567,7 @@ describe("GET /api/v1/beer-types", () => {
   beforeEach(() => {
     testState.auth.mode = "ok";
     mockedBeerTypeFindMany.mockReset();
+    clearCache("beer-types");
   });
 
   it("returns active beer types", async () => {

@@ -17,6 +17,7 @@ import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
 
 const CACHE_KEY_STATS = "stats";
 const CACHE_KEY_FILTERS = "filters";
+const CACHE_KEY_BEER_TYPES = "beer-types";
 
 const router = Router();
 
@@ -355,15 +356,19 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
+      const cached = getFromCache(CACHE_KEY_BEER_TYPES);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const beerTypes = await prisma.beerType.findMany({
         where: { isActive: true },
         orderBy: { name: "asc" },
       });
 
-      res.json({
-        success: true,
-        data: beerTypes,
-      });
+      const result = { success: true, data: beerTypes };
+      setInCache(CACHE_KEY_BEER_TYPES, result);
+      res.json(result);
     } catch (error) {
       console.error("Public API error:", error);
       res.status(500).json({
@@ -380,9 +385,9 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
-      const { id, tier } = req.apiKey!;
+      const { id, tier, rateLimitResult } = req.apiKey!;
       const limits = TIER_LIMITS[tier];
-      const { remaining, resetTimes } = await checkRateLimit(id, tier);
+      const { remaining, resetTimes } = rateLimitResult ?? (await checkRateLimit(id, tier));
 
       const usage = {
         hour: limits.requestsPerHour - remaining.hour,
