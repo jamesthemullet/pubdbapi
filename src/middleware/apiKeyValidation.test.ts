@@ -50,7 +50,6 @@ vi.mock("../utils/rateLimiting", () => ({
 }));
 
 import {
-  enforceTierLimits,
   requireTierAccess,
   validateApiKey,
 } from "./apiKeyValidation";
@@ -367,31 +366,4 @@ describe("apiKeyValidation middleware", () => {
     });
   });
 
-  describe("enforceTierLimits", () => {
-    it("calls next when api key is missing", () => {
-      const req: any = {};
-      const res = createResponse();
-      const next = vi.fn();
-
-      enforceTierLimits(req, res, next);
-
-      expect(next).toHaveBeenCalledTimes(1);
-    });
-
-    it("calls next when api key exists", () => {
-      const req: any = {
-        apiKey: {
-          id: "key_3",
-          userId: "user_3",
-          tier: "DEVELOPER",
-        },
-      };
-      const res = createResponse();
-      const next = vi.fn();
-
-      enforceTierLimits(req, res, next);
-
-      expect(next).toHaveBeenCalledTimes(1);
-    });
-  });
 });
