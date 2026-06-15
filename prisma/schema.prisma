@@ -46,6 +46,7 @@ model Pub {
   beerGardens  BeerGarden[]
   beerTypes    PubBeerType[]
 
+  @@index([name])
   @@index([city])
   @@index([createdById])
   @@index([operator])
