@@ -17,6 +17,11 @@ export interface ApiKeyRequest<
     userId: string;
     tier: ApiKeyTier;
     limits: TierLimits;
+    rateLimitResult?: {
+      allowed: boolean;
+      remaining: { hour: number; day: number; month: number };
+      resetTimes: { hour: Date; day: Date; month: Date };
+    };
   };
 }
 
@@ -108,6 +113,7 @@ export const validateApiKey = async (
       userId: apiKey.userId,
       tier: apiKey.tier,
       limits: TIER_LIMITS[apiKey.tier],
+      rateLimitResult,
     };
 
     // Add rate limit headers
