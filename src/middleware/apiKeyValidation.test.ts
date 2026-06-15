@@ -249,6 +249,15 @@ describe("apiKeyValidation middleware", () => {
           allowLocationSearch: true,
           allowStats: true,
         },
+        rateLimitResult: {
+          allowed: true,
+          remaining: { hour: 10, day: 90, month: 900 },
+          resetTimes: {
+            hour: new Date("2026-03-06T11:00:00.000Z"),
+            day: new Date("2026-03-07T00:00:00.000Z"),
+            month: new Date("2026-04-01T00:00:00.000Z"),
+          },
+        },
       });
       expect(res.set).toHaveBeenCalledWith({
         "X-RateLimit-Tier": "DEVELOPER",
