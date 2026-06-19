@@ -67,7 +67,7 @@
     "@types/node": "^24.0.13",
     "@types/qs": "^6.15.1",
     "@types/supertest": "^7.0.0",
-    "@vitest/coverage-v8": "4.1.8",
+    "@vitest/coverage-v8": "4.1.9",
     "knip": "^6.0.0",
     "nodemon": "3.1.14",
     "supertest": "^7.2.2",
