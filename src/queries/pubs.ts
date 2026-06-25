@@ -29,6 +29,7 @@ export interface PubListFilters {
   country?: string;
   search?: string;
   amenities?: Partial<Record<AmenityKey, boolean>>;
+  closedDown?: boolean;
 }
 
 export function buildPubWhereClause(filters: PubListFilters) {
@@ -66,6 +67,8 @@ export function buildPubWhereClause(filters: PubListFilters) {
   if (filters.country) {
     where.country = { equals: filters.country, mode: "insensitive" };
   }
+
+  where.closedDown = filters.closedDown === true ? true : { not: true };
 
   if (filters.amenities) {
     const andClauses: Record<string, unknown>[] = [];

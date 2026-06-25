@@ -151,6 +151,7 @@ describe("GET /pubs", () => {
       where: {
         city: { equals: "London", mode: "insensitive" },
         name: { contains: "Crown", mode: "insensitive" },
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -160,6 +161,7 @@ describe("GET /pubs", () => {
       where: {
         city: { equals: "London", mode: "insensitive" },
         name: { contains: "Crown", mode: "insensitive" },
+        closedDown: { not: true },
       },
     });
   });
@@ -178,6 +180,7 @@ describe("GET /pubs", () => {
         hasFood: true,
         isDogFriendly: true,
         hasLiveMusic: false,
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -200,7 +203,7 @@ describe("GET /pubs", () => {
 
     expect(response.status).toBe(200);
     expect(mockedFindMany).toHaveBeenCalledWith({
-      where: {},
+      where: { closedDown: { not: true } },
       orderBy: { name: "asc" },
       skip: 0,
       take: 50,
@@ -251,6 +254,7 @@ describe("GET /pubs", () => {
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
         country: { equals: "GB", mode: "insensitive" },
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -263,6 +267,7 @@ describe("GET /pubs", () => {
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
         country: { equals: "GB", mode: "insensitive" },
+        closedDown: { not: true },
       },
     });
   });
