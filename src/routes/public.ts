@@ -11,6 +11,7 @@ import {
   getPubById,
   parsePagination,
   PubListFilters,
+  PUB_AMENITY_FIELDS,
 } from "../queries/pubs";
 import { getFromCache, setInCache } from "../utils/cache";
 import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
@@ -38,7 +39,23 @@ router.get(
         search,
         page,
         limit,
+        closedDown,
+        ...rest
       } = req.query;
+
+      const amenityQuery =
+        rest && typeof rest === "object" && !Array.isArray(rest) ? rest : {};
+
+      const amenities: PubListFilters["amenities"] = {};
+      for (const { key } of PUB_AMENITY_FIELDS) {
+        const raw = amenityQuery[key];
+        if (raw === "true") amenities[key] = true;
+        else if (raw === "false") amenities[key] = false;
+      }
+
+      const canSeeClosedPubs = req.apiKey?.limits.allowClosedPubs ?? false;
+      const closedDownFilter =
+        canSeeClosedPubs && closedDown === "true" ? true : undefined;
 
       const filters: PubListFilters = {
         city: city ? String(city) : undefined,
@@ -49,6 +66,8 @@ router.get(
         area: area ? String(area) : undefined,
         country: country ? String(country) : undefined,
         search: search ? String(search) : undefined,
+        amenities: Object.keys(amenities).length > 0 ? amenities : undefined,
+        closedDown: closedDownFilter,
       };
 
       const { pageNum, limitNum, skip } = parsePagination(
@@ -78,6 +97,8 @@ router.get(
           area: area || null,
           country: country || null,
           search: search || null,
+          amenities: Object.keys(amenities).length > 0 ? amenities : null,
+          closedDown: closedDownFilter ?? false,
         },
       });
     } catch (error) {

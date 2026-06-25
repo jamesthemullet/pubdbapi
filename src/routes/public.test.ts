@@ -47,11 +47,15 @@ vi.mock("../utils/rateLimiting", async (importOriginal) => {
   };
 });
 
-vi.mock("../queries/pubs", () => ({
-  listPubs: testState.queries.listPubs,
-  getPubById: testState.queries.getPubById,
-  parsePagination: testState.queries.parsePagination,
-}));
+vi.mock("../queries/pubs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../queries/pubs")>();
+  return {
+    ...actual,
+    listPubs: testState.queries.listPubs,
+    getPubById: testState.queries.getPubById,
+    parsePagination: testState.queries.parsePagination,
+  };
+});
 
 vi.mock("../middleware/apiKeyValidation", () => ({
   validateApiKey: vi.fn((req: Request, res: Response, next: NextFunction) => {
@@ -83,6 +87,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
         maxResultsPerRequest: 100,
         allowLocationSearch: true,
         allowStats: true,
+        allowClosedPubs: true,
       },
     };
     next();
@@ -172,6 +177,8 @@ describe("GET /api/v1/pubs", () => {
         area: undefined,
         country: undefined,
         search: undefined,
+        amenities: undefined,
+        closedDown: undefined,
       },
       { skip: 0, limitNum: 50 }
     );
@@ -200,6 +207,8 @@ describe("GET /api/v1/pubs", () => {
         area: "North",
         country: "GB",
         search: undefined,
+        amenities: undefined,
+        closedDown: undefined,
       },
       { skip: 0, limitNum: 50 }
     );
@@ -218,6 +227,8 @@ describe("GET /api/v1/pubs", () => {
       area: null,
       country: null,
       search: null,
+      amenities: null,
+      closedDown: false,
     });
   });
 
