@@ -68,7 +68,7 @@ export function buildPubWhereClause(filters: PubListFilters) {
     where.country = { equals: filters.country, mode: "insensitive" };
   }
 
-  where.closedDown = filters.closedDown ?? false;
+  where.closedDown = filters.closedDown === true ? true : { not: true };
 
   if (filters.amenities) {
     const andClauses: Record<string, unknown>[] = [];
