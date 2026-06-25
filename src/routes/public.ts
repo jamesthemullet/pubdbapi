@@ -435,6 +435,64 @@ router.get(
   }
 );
 
+router.get(
+  "/usage/history",
+  validateApiKey,
+  async (req: ApiKeyRequest, res: Response) => {
+    try {
+      const { limit, since, endpoint: endpointFilter } = req.query;
+
+      const limitNum = Math.min(
+        Math.max(1, parseInt((limit as string) || "20", 10) || 20),
+        100
+      );
+
+      const sinceDate =
+        since && !isNaN(Date.parse(since as string))
+          ? new Date(since as string)
+          : undefined;
+
+      const history = await prisma.apiKeyUsage.findMany({
+        where: {
+          apiKeyId: req.apiKey!.id,
+          ...(sinceDate ? { timestamp: { gte: sinceDate } } : {}),
+          ...(endpointFilter
+            ? { endpoint: { contains: endpointFilter as string } }
+            : {}),
+        },
+        orderBy: { timestamp: "desc" },
+        take: limitNum,
+        select: {
+          id: true,
+          timestamp: true,
+          endpoint: true,
+          method: true,
+          statusCode: true,
+          responseTime: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: history,
+        meta: {
+          count: history.length,
+          limit: limitNum,
+          since: sinceDate ?? null,
+          endpoint: endpointFilter ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("Usage history error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to fetch usage history",
+      });
+    }
+  }
+);
+
 router.get("/info", async (req: ApiKeyRequest, res: Response) => {
   res.json({
     success: true,
@@ -456,6 +514,7 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       "GET /api/v1/contributors/leaderboard":
         "Get ranked list of top contributors by pubs added and edits made",
       "GET /api/v1/usage": "Get your current quota usage and remaining limits",
+      "GET /api/v1/usage/history": "Get your recent API request history (supports ?limit, ?since, ?endpoint)",
       "GET /api/v1/info": "Get API information",
     },
     usage: {

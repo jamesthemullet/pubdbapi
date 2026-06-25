@@ -26,6 +26,9 @@ const testState = vi.hoisted(() => ({
     beerType: {
       findMany: vi.fn(),
     },
+    apiKeyUsage: {
+      findMany: vi.fn(),
+    },
   },
   queries: {
     listPubs: vi.fn(),
@@ -136,6 +139,8 @@ const mockedGetPubById = testState.queries.getPubById as unknown as ReturnType<
 >;
 const mockedParsePagination = testState.queries
   .parsePagination as unknown as ReturnType<typeof vi.fn>;
+const mockedApiKeyUsageFindMany = testState.prisma.apiKeyUsage
+  .findMany as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /api/v1/pubs", () => {
   beforeEach(() => {
@@ -726,6 +731,121 @@ describe("GET /api/v1/usage", () => {
       success: false,
       error: "Internal server error",
       message: "Failed to fetch usage data",
+    });
+  });
+});
+
+describe("GET /api/v1/usage/history", () => {
+  const sampleHistory = [
+    {
+      id: "u_2",
+      timestamp: "2026-06-25T10:00:00.000Z",
+      endpoint: "/api/v1/pubs",
+      method: "GET",
+      statusCode: 200,
+      responseTime: 42,
+    },
+    {
+      id: "u_1",
+      timestamp: "2026-06-25T09:00:00.000Z",
+      endpoint: "/api/v1/stats",
+      method: "GET",
+      statusCode: 200,
+      responseTime: 15,
+    },
+  ];
+
+  beforeEach(() => {
+    testState.auth.mode = "ok";
+    mockedApiKeyUsageFindMany.mockReset();
+    mockedApiKeyUsageFindMany.mockResolvedValue(sampleHistory);
+  });
+
+  it("returns usage history with default limit", async () => {
+    const response = await request(app).get("/api/v1/usage/history");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toEqual(sampleHistory);
+    expect(response.body.meta).toMatchObject({ count: 2, limit: 20, since: null, endpoint: null });
+    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { apiKeyId: "k_1" },
+        orderBy: { timestamp: "desc" },
+        take: 20,
+      })
+    );
+  });
+
+  it("respects ?limit param up to 100", async () => {
+    const response = await request(app).get("/api/v1/usage/history?limit=50");
+
+    expect(response.status).toBe(200);
+    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 50 })
+    );
+    expect(response.body.meta.limit).toBe(50);
+  });
+
+  it("caps ?limit at 100", async () => {
+    const response = await request(app).get("/api/v1/usage/history?limit=500");
+
+    expect(response.status).toBe(200);
+    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 100 })
+    );
+    expect(response.body.meta.limit).toBe(100);
+  });
+
+  it("applies ?since filter", async () => {
+    const since = "2026-06-25T09:30:00.000Z";
+    const response = await request(app).get(`/api/v1/usage/history?since=${since}`);
+
+    expect(response.status).toBe(200);
+    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          timestamp: { gte: new Date(since) },
+        }),
+      })
+    );
+    expect(response.body.meta.since).toBe(since);
+  });
+
+  it("applies ?endpoint filter", async () => {
+    const response = await request(app).get("/api/v1/usage/history?endpoint=/pubs");
+
+    expect(response.status).toBe(200);
+    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          endpoint: { contains: "/pubs" },
+        }),
+      })
+    );
+    expect(response.body.meta.endpoint).toBe("/pubs");
+  });
+
+  it("returns 401 when API key is missing", async () => {
+    testState.auth.mode = "missing";
+
+    const response = await request(app).get("/api/v1/usage/history");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ success: false, error: "Unauthorized" });
+    expect(mockedApiKeyUsageFindMany).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when database query fails", async () => {
+    mockedApiKeyUsageFindMany.mockRejectedValueOnce(new Error("db down"));
+
+    const response = await request(app).get("/api/v1/usage/history");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      success: false,
+      error: "Internal server error",
+      message: "Failed to fetch usage history",
     });
   });
 });
