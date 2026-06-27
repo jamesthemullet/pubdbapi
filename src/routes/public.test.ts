@@ -171,7 +171,7 @@ describe("GET /api/v1/pubs", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mockedParsePagination).toHaveBeenCalledWith("2", "10");
+    expect(mockedParsePagination).toHaveBeenCalledWith("2", "10", 100);
     expect(mockedListPubs).toHaveBeenCalledWith(
       {
         city: "London",
@@ -464,21 +464,22 @@ describe("GET /api/v1/stats", () => {
 
   it("returns aggregate stats with sorted top lists", async () => {
     mockedPubCount.mockResolvedValueOnce(100 as any);
+    // Mocks return pre-sorted data, as the DB would with orderBy: { _count: { ... desc } }
     mockedPubGroupBy
       .mockResolvedValueOnce([
-        { city: "NoCountCity" },
         { city: "London", _count: { city: 80 } },
         { city: "Bristol", _count: { city: 20 } },
+        { city: "NoCountCity" },
       ] as any)
       .mockResolvedValueOnce([
-        { operator: "Small Group", _count: { operator: 2 } },
         { operator: "Stonegate", _count: { operator: 12 } },
         { operator: "Medium Group", _count: { operator: 7 } },
+        { operator: "Small Group", _count: { operator: 2 } },
       ] as any)
       .mockResolvedValueOnce([
-        { borough: "Hackney", _count: { borough: 3 } },
         { borough: "Camden", _count: { borough: 9 } },
         { borough: "Westminster", _count: { borough: 6 } },
+        { borough: "Hackney", _count: { borough: 3 } },
       ] as any);
 
     const response = await request(app).get("/api/v1/stats");
