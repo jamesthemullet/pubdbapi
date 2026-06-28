@@ -206,7 +206,7 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
   });
 
   if (!user) {
-    return res.status(404).json({ error: "No account found for that email" });
+    return res.json({ message: "If the email exists, a new API key has been generated." });
   }
 
   const existingKeys = await prisma.apiKey.findMany({

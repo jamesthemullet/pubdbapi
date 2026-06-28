@@ -531,16 +531,16 @@ describe("POST /auth/forgot-api-key", () => {
     expect(mockedTransaction).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when account is not found", async () => {
+  it("returns generic success when account is not found to prevent email enumeration", async () => {
     mockedUserFindUnique.mockResolvedValueOnce(null);
 
     const response = await request(app).post("/auth/forgot-api-key").send({
       email: "missing@example.com",
     });
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      error: "No account found for that email",
+      message: "If the email exists, a new API key has been generated.",
     });
     expect(mockedUserFindUnique).toHaveBeenCalledWith({
       where: { email: "missing@example.com" },

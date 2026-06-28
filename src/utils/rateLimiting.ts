@@ -8,6 +8,7 @@ export interface TierLimits {
   requestsPerMonth: number;
   allowLocationSearch: boolean;
   allowStats: boolean;
+  maxResults: number;
 }
 
 export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
@@ -17,6 +18,7 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     requestsPerMonth: 1000,
     allowLocationSearch: false,
     allowStats: false,
+    maxResults: 10,
   },
   DEVELOPER: {
     requestsPerHour: 1000,
@@ -24,6 +26,7 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     requestsPerMonth: 100000,
     allowLocationSearch: true,
     allowStats: true,
+    maxResults: 100,
   },
   BUSINESS: {
     requestsPerHour: 5000,
@@ -31,6 +34,7 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     requestsPerMonth: 500000,
     allowLocationSearch: true,
     allowStats: true,
+    maxResults: 500,
   },
 };
 
