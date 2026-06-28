@@ -72,7 +72,8 @@ router.get(
 
       const { pageNum, limitNum, skip } = parsePagination(
         page as string | undefined,
-        limit as string | undefined
+        limit as string | undefined,
+        req.apiKey?.limits.maxResultsPerRequest ?? 10000
       );
 
       const { pubs, total } = await listPubs(filters, { skip, limitNum });
@@ -253,16 +254,19 @@ router.get(
             by: ["city"],
             _count: { city: true },
             where: { city: { not: "" } },
+            orderBy: { _count: { city: "desc" } },
           }),
           prisma.pub.groupBy({
             by: ["operator"],
             where: { operator: { not: null } },
             _count: { operator: true },
+            orderBy: { _count: { operator: "desc" } },
           }),
           prisma.pub.groupBy({
             by: ["borough"],
             where: { borough: { not: null } },
             _count: { borough: true },
+            orderBy: { _count: { borough: "desc" } },
           }),
         ]);
 
@@ -275,27 +279,18 @@ router.get(
             totalOperators: operatorsCount.length,
             totalBoroughs: boroughsCount.length,
           },
-          topCities: citiesCount
-            .sort((a, b) => (b._count?.city || 0) - (a._count?.city || 0))
-            .slice(0, 10)
-            .map((city) => ({
-              name: city.city,
-              count: city._count?.city || 0,
-            })),
-          topOperators: operatorsCount
-            .sort((a, b) => b._count.operator - a._count.operator)
-            .slice(0, 10)
-            .map((op) => ({
-              name: op.operator,
-              count: op._count.operator,
-            })),
-          topBoroughs: boroughsCount
-            .sort((a, b) => b._count.borough - a._count.borough)
-            .slice(0, 10)
-            .map((borough) => ({
-              name: borough.borough,
-              count: borough._count.borough,
-            })),
+          topCities: citiesCount.slice(0, 10).map((city) => ({
+            name: city.city,
+            count: city._count?.city || 0,
+          })),
+          topOperators: operatorsCount.slice(0, 10).map((op) => ({
+            name: op.operator,
+            count: op._count.operator,
+          })),
+          topBoroughs: boroughsCount.slice(0, 10).map((borough) => ({
+            name: borough.borough,
+            count: borough._count.borough,
+          })),
         },
       };
 
@@ -543,12 +538,12 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       apiKey:
         "Include API key in 'X-API-Key' header",
       tiers: {
-        TESTING:
-          "50 req/hour, 200 req/day, 1K req/month, max 10 results, no location/stats",
+        HOBBY:
+          "20 req/hour, 200 req/day, 1K req/month, max 10 results per page, no location/stats",
         DEVELOPER:
-          "1K req/hour, 10K req/day, 100K req/month, max 100 results, full access",
+          "1K req/hour, 10K req/day, 100K req/month, max 100 results per page, full access",
         BUSINESS:
-          "5K req/hour, 50K req/day, 500K req/month, max 500 results, full access",
+          "5K req/hour, 50K req/day, 500K req/month, max 500 results per page, full access",
       },
       rateLimit: "Varies by tier, enforced hourly/daily/monthly",
       pagination: "Use 'page' and 'limit' parameters (max varies by tier)",

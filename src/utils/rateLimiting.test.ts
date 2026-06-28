@@ -47,6 +47,9 @@ describe("rateLimiting utils", () => {
     expect(TIER_LIMITS.HOBBY.requestsPerHour).toBe(20);
     expect(TIER_LIMITS.DEVELOPER.requestsPerDay).toBe(10000);
     expect(TIER_LIMITS.BUSINESS.requestsPerMonth).toBe(500000);
+    expect(TIER_LIMITS.HOBBY.maxResultsPerRequest).toBe(10);
+    expect(TIER_LIMITS.DEVELOPER.maxResultsPerRequest).toBe(100);
+    expect(TIER_LIMITS.BUSINESS.maxResultsPerRequest).toBe(500);
   });
 
   describe("checkRateLimit", () => {
