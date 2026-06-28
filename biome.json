@@ -1,11 +1,11 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
 	"linter": {
 		"rules": {
-			"recommended": true
+			"preset": "recommended"
 		}
 	},
 	"files": {
-		"includes": ["src"]
+		"includes": ["src/**"]
 	}
 }
