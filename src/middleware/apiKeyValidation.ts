@@ -206,5 +206,11 @@ export const enforceTierLimits = (
     return next();
   }
 
+  const maxResults = req.apiKey.limits.maxResults;
+  const requestedLimit = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+  if (requestedLimit !== undefined && requestedLimit > maxResults) {
+    req.query.limit = String(maxResults);
+  }
+
   next();
 };

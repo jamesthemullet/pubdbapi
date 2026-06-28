@@ -413,13 +413,53 @@ describe("apiKeyValidation middleware", () => {
           id: "key_3",
           userId: "user_3",
           tier: "DEVELOPER",
+          limits: { maxResults: 100 },
         },
+        query: {},
       };
       const res = createResponse();
       const next = vi.fn();
 
       enforceTierLimits(req, res, next);
 
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("caps limit to tier maxResults when request exceeds it", () => {
+      const req: any = {
+        apiKey: {
+          id: "key_4",
+          userId: "user_4",
+          tier: "HOBBY",
+          limits: { maxResults: 10 },
+        },
+        query: { limit: "10000" },
+      };
+      const res = createResponse();
+      const next = vi.fn();
+
+      enforceTierLimits(req, res, next);
+
+      expect(req.query.limit).toBe("10");
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not modify limit when within tier maxResults", () => {
+      const req: any = {
+        apiKey: {
+          id: "key_5",
+          userId: "user_5",
+          tier: "DEVELOPER",
+          limits: { maxResults: 100 },
+        },
+        query: { limit: "50" },
+      };
+      const res = createResponse();
+      const next = vi.fn();
+
+      enforceTierLimits(req, res, next);
+
+      expect(req.query.limit).toBe("50");
       expect(next).toHaveBeenCalledTimes(1);
     });
   });
