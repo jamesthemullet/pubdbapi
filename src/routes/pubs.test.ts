@@ -151,6 +151,7 @@ describe("GET /pubs", () => {
       where: {
         city: { equals: "London", mode: "insensitive" },
         name: { contains: "Crown", mode: "insensitive" },
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -160,6 +161,7 @@ describe("GET /pubs", () => {
       where: {
         city: { equals: "London", mode: "insensitive" },
         name: { contains: "Crown", mode: "insensitive" },
+        closedDown: { not: true },
       },
     });
   });
@@ -178,6 +180,7 @@ describe("GET /pubs", () => {
         hasFood: true,
         isDogFriendly: true,
         hasLiveMusic: false,
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -200,7 +203,7 @@ describe("GET /pubs", () => {
 
     expect(response.status).toBe(200);
     expect(mockedFindMany).toHaveBeenCalledWith({
-      where: {},
+      where: { closedDown: { not: true } },
       orderBy: { name: "asc" },
       skip: 0,
       take: 50,
@@ -251,6 +254,7 @@ describe("GET /pubs", () => {
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
         country: { equals: "GB", mode: "insensitive" },
+        closedDown: { not: true },
       },
       orderBy: { name: "asc" },
       skip: 0,
@@ -263,8 +267,58 @@ describe("GET /pubs", () => {
         postcode: { equals: "NW1 6XE", mode: "insensitive" },
         area: { equals: "London", mode: "insensitive" },
         country: { equals: "GB", mode: "insensitive" },
+        closedDown: { not: true },
       },
     });
+  });
+});
+
+describe("GET /pubs/random", () => {
+  beforeEach(() => {
+    mockedCount.mockReset();
+    mockedFindMany.mockReset();
+  });
+
+  it("returns 404 when no pubs match the filters", async () => {
+    mockedCount.mockResolvedValueOnce(0);
+
+    const response = await request(app).get("/pubs/random");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: "No pubs found" });
+  });
+
+  it("returns a random pub when pubs exist", async () => {
+    const pub = {
+      id: "pub_rand",
+      name: "The Random Arms",
+      city: "Bristol",
+      beerGardens: [],
+      beerTypes: [],
+    };
+    mockedCount.mockResolvedValueOnce(5);
+    mockedFindMany.mockResolvedValueOnce([pub]);
+
+    const response = await request(app).get("/pubs/random");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true, data: pub });
+  });
+
+  it("returns a random pub filtered by city", async () => {
+    const pub = { id: "pub_city", name: "The Local", city: "Leeds", beerGardens: [], beerTypes: [] };
+    mockedCount.mockResolvedValueOnce(3);
+    mockedFindMany.mockResolvedValueOnce([pub]);
+
+    const response = await request(app).get("/pubs/random?city=Leeds");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.city).toBe("Leeds");
+    expect(mockedCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ city: { equals: "Leeds", mode: "insensitive" } }),
+      })
+    );
   });
 });
 

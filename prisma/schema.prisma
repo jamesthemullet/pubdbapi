@@ -46,6 +46,7 @@ model Pub {
   beerGardens  BeerGarden[]
   beerTypes    PubBeerType[]
 
+  @@index([name])
   @@index([city])
   @@index([createdById])
   @@index([operator])
@@ -174,6 +175,10 @@ model AuditLog {
   ipAddress String?
   userAgent String?
   user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+  @@index([action, entity, userId])
+  @@index([timestamp])
 }
 
 model ApiKey {
@@ -207,7 +212,7 @@ model ApiKey {
   user        User      @relation(fields: [userId], references: [id])
   usage       ApiKeyUsage[]
 
-  @@index([keyHash])
+  @@index([keyHash, isActive])
   @@index([userId])
 }
 

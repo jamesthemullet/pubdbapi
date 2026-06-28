@@ -11,12 +11,14 @@ import {
   getPubById,
   parsePagination,
   PubListFilters,
+  PUB_AMENITY_FIELDS,
 } from "../queries/pubs";
 import { getFromCache, setInCache } from "../utils/cache";
 import { checkRateLimit, TIER_LIMITS } from "../utils/rateLimiting";
 
 const CACHE_KEY_STATS = "stats";
 const CACHE_KEY_FILTERS = "filters";
+const CACHE_KEY_BEER_TYPES = "beer-types";
 
 const router = Router();
 
@@ -37,7 +39,23 @@ router.get(
         search,
         page,
         limit,
+        closedDown,
+        ...rest
       } = req.query;
+
+      const amenityQuery =
+        rest && typeof rest === "object" && !Array.isArray(rest) ? rest : {};
+
+      const amenities: PubListFilters["amenities"] = {};
+      for (const { key } of PUB_AMENITY_FIELDS) {
+        const raw = amenityQuery[key];
+        if (raw === "true") amenities[key] = true;
+        else if (raw === "false") amenities[key] = false;
+      }
+
+      const canSeeClosedPubs = req.apiKey?.limits.allowClosedPubs ?? false;
+      const closedDownFilter =
+        canSeeClosedPubs && closedDown === "true" ? true : undefined;
 
       const filters: PubListFilters = {
         city: city ? String(city) : undefined,
@@ -48,6 +66,8 @@ router.get(
         area: area ? String(area) : undefined,
         country: country ? String(country) : undefined,
         search: search ? String(search) : undefined,
+        amenities: Object.keys(amenities).length > 0 ? amenities : undefined,
+        closedDown: closedDownFilter,
       };
 
       const { pageNum, limitNum, skip } = parsePagination(
@@ -77,6 +97,8 @@ router.get(
           area: area || null,
           country: country || null,
           search: search || null,
+          amenities: Object.keys(amenities).length > 0 ? amenities : null,
+          closedDown: closedDownFilter ?? false,
         },
       });
     } catch (error) {
@@ -355,15 +377,19 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
+      const cached = getFromCache(CACHE_KEY_BEER_TYPES);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const beerTypes = await prisma.beerType.findMany({
         where: { isActive: true },
         orderBy: { name: "asc" },
       });
 
-      res.json({
-        success: true,
-        data: beerTypes,
-      });
+      const result = { success: true, data: beerTypes };
+      setInCache(CACHE_KEY_BEER_TYPES, result);
+      res.json(result);
     } catch (error) {
       console.error("Public API error:", error);
       res.status(500).json({
@@ -380,9 +406,9 @@ router.get(
   validateApiKey,
   async (req: ApiKeyRequest, res: Response) => {
     try {
-      const { id, tier } = req.apiKey!;
+      const { id, tier, rateLimitResult } = req.apiKey!;
       const limits = TIER_LIMITS[tier];
-      const { remaining, resetTimes } = await checkRateLimit(id, tier);
+      const { remaining, resetTimes } = rateLimitResult ?? (await checkRateLimit(id, tier));
 
       const usage = {
         hour: limits.requestsPerHour - remaining.hour,
@@ -396,7 +422,7 @@ router.get(
         atOrNear80(usage.day, limits.requestsPerDay) ||
         atOrNear80(usage.month, limits.requestsPerMonth);
 
-      const TIER_ORDER: string[] = ["HOBBY", "DEVELOPER", "BUSINESS"];
+      const TIER_ORDER = Object.keys(TIER_LIMITS);
       const nextTier = TIER_ORDER[TIER_ORDER.indexOf(tier) + 1] ?? null;
       const upgradeAvailable = nearLimit && tier !== "BUSINESS";
 
@@ -430,6 +456,64 @@ router.get(
   }
 );
 
+router.get(
+  "/usage/history",
+  validateApiKey,
+  async (req: ApiKeyRequest, res: Response) => {
+    try {
+      const { limit, since, endpoint: endpointFilter } = req.query;
+
+      const limitNum = Math.min(
+        Math.max(1, parseInt((limit as string) || "20", 10) || 20),
+        100
+      );
+
+      const sinceDate =
+        since && !isNaN(Date.parse(since as string))
+          ? new Date(since as string)
+          : undefined;
+
+      const history = await prisma.apiKeyUsage.findMany({
+        where: {
+          apiKeyId: req.apiKey!.id,
+          ...(sinceDate ? { timestamp: { gte: sinceDate } } : {}),
+          ...(endpointFilter
+            ? { endpoint: { contains: endpointFilter as string } }
+            : {}),
+        },
+        orderBy: { timestamp: "desc" },
+        take: limitNum,
+        select: {
+          id: true,
+          timestamp: true,
+          endpoint: true,
+          method: true,
+          statusCode: true,
+          responseTime: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: history,
+        meta: {
+          count: history.length,
+          limit: limitNum,
+          since: sinceDate ?? null,
+          endpoint: endpointFilter ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("Usage history error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Failed to fetch usage history",
+      });
+    }
+  }
+);
+
 router.get("/info", async (req: ApiKeyRequest, res: Response) => {
   res.json({
     success: true,
@@ -451,6 +535,7 @@ router.get("/info", async (req: ApiKeyRequest, res: Response) => {
       "GET /api/v1/contributors/leaderboard":
         "Get ranked list of top contributors by pubs added and edits made",
       "GET /api/v1/usage": "Get your current quota usage and remaining limits",
+      "GET /api/v1/usage/history": "Get your recent API request history (supports ?limit, ?since, ?endpoint)",
       "GET /api/v1/info": "Get API information",
     },
     usage: {

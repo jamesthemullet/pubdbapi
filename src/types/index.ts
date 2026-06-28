@@ -20,7 +20,7 @@ const normalizeChainName = (value?: string) => {
 
 // Extend Request interface for authenticated requests
 export interface AuthenticatedRequest<
-  P extends Record<string, string> = Record<string, string>,
+  P extends Record<string, string> = Record<string, string>
 > extends Request<P> {
   user?: { userId: string; email: string };
 }
@@ -123,7 +123,7 @@ export const beerGardenSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
-export const beerGardenPatchSchema = beerGardenSchema.partial().extend({
+const beerGardenPatchSchema = beerGardenSchema.partial().extend({
   id: z.string().max(50).optional(),
   _delete: z.boolean().optional(),
 });
@@ -134,7 +134,7 @@ export const pubBeerTypeSchema = z.object({
   beerTypeId: z.string().min(1).max(50),
 });
 
-export const pubBeerTypePatchSchema = pubBeerTypeSchema.extend({
+const pubBeerTypePatchSchema = pubBeerTypeSchema.extend({
   _delete: z.boolean().optional(),
 });
 

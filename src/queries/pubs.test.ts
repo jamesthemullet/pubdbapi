@@ -85,7 +85,7 @@ describe("buildPubWhereClause", () => {
 
     it("returns empty object when no filters supplied", () => {
       const where = buildPubWhereClause({});
-      expect(where).toEqual({});
+      expect(where).toEqual({ closedDown: { not: true } });
     });
   });
 
@@ -144,12 +144,12 @@ describe("buildPubWhereClause", () => {
 
     it("ignores amenities when object is empty", () => {
       const where = buildPubWhereClause({ amenities: {} });
-      expect(where).toEqual({});
+      expect(where).toEqual({ closedDown: { not: true } });
     });
 
     it("ignores amenities when undefined", () => {
       const where = buildPubWhereClause({ amenities: undefined });
-      expect(where).toEqual({});
+      expect(where).toEqual({ closedDown: { not: true } });
     });
   });
 });

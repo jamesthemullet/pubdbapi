@@ -5,6 +5,7 @@ import {
   recordApiUsage,
   TIER_LIMITS,
   TierLimits,
+  UsageSnapshot,
 } from "../utils/rateLimiting";
 import crypto from "crypto";
 import { prisma } from "../prisma";
@@ -17,6 +18,11 @@ export interface ApiKeyRequest<
     userId: string;
     tier: ApiKeyTier;
     limits: TierLimits;
+    rateLimitResult?: {
+      allowed: boolean;
+      remaining: { hour: number; day: number; month: number };
+      resetTimes: { hour: Date; day: Date; month: Date };
+    };
   };
 }
 
@@ -51,10 +57,17 @@ export const validateApiKey = async (
         isActive: true,
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
-      include: {
-        user: {
-          select: { id: true, approved: true, admin: true },
-        },
+      select: {
+        id: true,
+        userId: true,
+        tier: true,
+        currentHourUsage: true,
+        hourlyResetDate: true,
+        currentDayUsage: true,
+        dailyResetDate: true,
+        currentMonthUsage: true,
+        monthlyResetDate: true,
+        user: { select: { id: true, approved: true, admin: true } },
       },
     });
 
@@ -75,8 +88,16 @@ export const validateApiKey = async (
       });
     }
 
-    // Check rate limits
-    const rateLimitResult = await checkRateLimit(apiKey.id, apiKey.tier);
+    // Check rate limits using the already-fetched usage fields — no second DB query
+    const usageSnapshot: UsageSnapshot = {
+      currentHourUsage: apiKey.currentHourUsage,
+      hourlyResetDate: apiKey.hourlyResetDate,
+      currentDayUsage: apiKey.currentDayUsage,
+      dailyResetDate: apiKey.dailyResetDate,
+      currentMonthUsage: apiKey.currentMonthUsage,
+      monthlyResetDate: apiKey.monthlyResetDate,
+    };
+    const rateLimitResult = await checkRateLimit(apiKey.id, apiKey.tier, usageSnapshot);
 
     if (!rateLimitResult.allowed) {
       // Still record the usage attempt for analytics
@@ -108,6 +129,7 @@ export const validateApiKey = async (
       userId: apiKey.userId,
       tier: apiKey.tier,
       limits: TIER_LIMITS[apiKey.tier],
+      rateLimitResult,
     };
 
     // Add rate limit headers

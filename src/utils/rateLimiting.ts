@@ -9,6 +9,7 @@ export interface TierLimits {
   allowLocationSearch: boolean;
   allowStats: boolean;
   maxResults: number;
+  allowClosedPubs: boolean;
 }
 
 export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
@@ -19,6 +20,7 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     allowLocationSearch: false,
     allowStats: false,
     maxResults: 10,
+    allowClosedPubs: false,
   },
   DEVELOPER: {
     requestsPerHour: 1000,
@@ -27,6 +29,7 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     allowLocationSearch: true,
     allowStats: true,
     maxResults: 100,
+    allowClosedPubs: true,
   },
   BUSINESS: {
     requestsPerHour: 5000,
@@ -35,12 +38,23 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
     allowLocationSearch: true,
     allowStats: true,
     maxResults: 500,
+    allowClosedPubs: true,
   },
 };
 
+export interface UsageSnapshot {
+  currentHourUsage: number;
+  hourlyResetDate: Date;
+  currentDayUsage: number;
+  dailyResetDate: Date;
+  currentMonthUsage: number;
+  monthlyResetDate: Date;
+}
+
 export async function checkRateLimit(
   apiKeyId: string,
-  tier: ApiKeyTier
+  tier: ApiKeyTier,
+  snapshot?: UsageSnapshot
 ): Promise<{
   allowed: boolean;
   remaining: { hour: number; day: number; month: number };
@@ -49,7 +63,7 @@ export async function checkRateLimit(
   const limits = TIER_LIMITS[tier];
   const now = new Date();
 
-  const apiKey = await prisma.apiKey.findUnique({
+  const apiKey = snapshot ?? await prisma.apiKey.findUnique({
     where: { id: apiKeyId },
     select: {
       currentHourUsage: true,

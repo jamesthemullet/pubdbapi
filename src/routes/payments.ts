@@ -29,6 +29,15 @@ router.post(
     if (!requireAuth(req, res)) return;
 
     try {
+      const existingKey = await prisma.apiKey.findFirst({
+        where: { userId: req.user.userId, tier: "HOBBY" },
+      });
+
+      if (existingKey) {
+        res.status(409).json({ error: "You already have a hobby API key." });
+        return;
+      }
+
       const hobbySubscriptionData = {
         subscriptionTier: "HOBBY" as const,
         subscriptionStatus: "ACTIVE" as const,
@@ -400,6 +409,22 @@ router.post(
       subscriptionStatus =
         subscription.status === "active" ? "ACTIVE" : "INCOMPLETE";
 
+      await prisma.user.update({
+        where: { id: req.user.userId },
+        data: {
+          stripeCustomerId:
+            typeof session.customer === "string" ? session.customer : null,
+          stripeSubscriptionId:
+            typeof session.subscription === "string"
+              ? session.subscription
+              : null,
+          subscriptionTier,
+          subscriptionStatus,
+          subscriptionStartDate: new Date(),
+          subscriptionEndDate: null,
+        },
+      });
+
       const activeKeys = await prisma.apiKey.findMany({
         where: { userId: req.user.userId, isActive: true },
       });
@@ -489,6 +514,208 @@ router.post(
       });
     } catch (err) {
       console.error("Error verifying session:", err);
+      res.status(500).json({ error: "Something went wrong" });
+    }
+  }
+);
+
+type StripeAddress = {
+  city: string | null;
+  country: string | null;
+  line1: string | null;
+  line2: string | null;
+  postal_code: string | null;
+  state: string | null;
+};
+
+type StripeCardDetails = {
+  brand: string;
+  exp_month: number;
+  exp_year: number;
+  funding: string;
+};
+
+type StripePaymentMethodExpanded = {
+  card?: StripeCardDetails;
+};
+
+type StripeCustomerExpanded = {
+  deleted?: boolean;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: StripeAddress | null;
+  invoice_settings?: {
+    default_payment_method?: StripePaymentMethodExpanded | string | null;
+  };
+};
+
+type StripeUpcomingInvoice = {
+  amount_due: number;
+  currency: string;
+  next_payment_attempt: number | null;
+};
+
+type StripeInvoiceItem = {
+  created: number;
+  amount_paid: number;
+  currency: string;
+  status: string | null;
+  description: string | null;
+  lines: { data: Array<{ description: string | null; period: { start: number; end: number } | null }> };
+  invoice_pdf: string | null;
+  hosted_invoice_url: string | null;
+};
+
+router.get(
+  "/billing",
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireAuth(req, res)) return;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: {
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+          subscriptionTier: true,
+          subscriptionStatus: true,
+          subscriptionEndDate: true,
+          apiKeys: {
+            where: { isActive: true },
+            select: { tier: true },
+          },
+        },
+      });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const tier = user.subscriptionTier ?? "HOBBY";
+
+      if (!user.stripeCustomerId || !user.stripeSubscriptionId) {
+        return res.json({
+          plan: { tier, price: 0, currency: "gbp", interval: null },
+          status: user.subscriptionStatus ?? "ACTIVE",
+          stripeCustomerId: null,
+          billingDetails: null,
+          paymentMethod: null,
+          upcomingInvoice: null,
+          invoices: [],
+        });
+      }
+
+      const [customer, subscription, upcomingInvoice, invoiceList] =
+        await Promise.all([
+          stripe.customers.retrieve(user.stripeCustomerId, {
+            expand: ["invoice_settings.default_payment_method"],
+          }) as Promise<StripeCustomerExpanded>,
+          stripe.subscriptions.retrieve(user.stripeSubscriptionId, {
+            expand: ["default_payment_method"],
+          }),
+          (
+            stripe.invoices.createPreview as (params: {
+              customer: string;
+              subscription: string;
+            }) => Promise<StripeUpcomingInvoice>
+          )({
+            customer: user.stripeCustomerId,
+            subscription: user.stripeSubscriptionId,
+          }).catch(() => null),
+          stripe.invoices.list({
+            customer: user.stripeCustomerId,
+            limit: 24,
+          }) as Promise<{ data: StripeInvoiceItem[] }>,
+        ]);
+
+      const plan = subscription.items.data[0]?.plan;
+
+      const rawPm =
+        (
+          subscription as {
+            default_payment_method?:
+              | StripePaymentMethodExpanded
+              | string
+              | null;
+          }
+        ).default_payment_method ??
+        customer.invoice_settings?.default_payment_method ??
+        null;
+
+      const pm: StripePaymentMethodExpanded | null =
+        rawPm && typeof rawPm !== "string" ? rawPm : null;
+
+      const paymentMethod = pm?.card
+        ? {
+            brand: pm.card.brand,
+            expMonth: pm.card.exp_month,
+            expYear: pm.card.exp_year,
+            funding: pm.card.funding,
+          }
+        : null;
+
+      const billingDetails = customer.deleted
+        ? null
+        : {
+            name: customer.name ?? null,
+            email: customer.email ?? null,
+            phone: customer.phone ?? null,
+            address: customer.address ?? null,
+          };
+
+      const sub = subscription as unknown as {
+        cancel_at_period_end: boolean;
+        current_period_end: number;
+      };
+
+      const invoices = invoiceList.data.map((inv) => ({
+        date: new Date(inv.created * 1000).toISOString(),
+        amount: inv.amount_paid,
+        currency: inv.currency,
+        status: inv.status,
+        description: inv.description ?? inv.lines.data[0]?.description ?? null,
+        pdfUrl: inv.invoice_pdf,
+        hostedUrl: inv.hosted_invoice_url,
+        billingPeriod: {
+          start: inv.lines.data[0]?.period?.start
+            ? new Date(inv.lines.data[0].period.start * 1000).toISOString()
+            : null,
+          end: inv.lines.data[0]?.period?.end
+            ? new Date(inv.lines.data[0].period.end * 1000).toISOString()
+            : null,
+        },
+      }));
+
+      res.json({
+        plan: {
+          tier,
+          price: plan?.amount ?? null,
+          currency: plan?.currency ?? null,
+          interval: plan?.interval ?? null,
+        },
+        status: user.subscriptionStatus ?? subscription.status,
+        cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+        currentPeriodEnd: sub.current_period_end
+          ? new Date(sub.current_period_end * 1000).toISOString()
+          : null,
+        stripeCustomerId: user.stripeCustomerId,
+        billingDetails,
+        paymentMethod,
+        upcomingInvoice: upcomingInvoice
+          ? {
+              amount: upcomingInvoice.amount_due,
+              currency: upcomingInvoice.currency,
+              dueDate: upcomingInvoice.next_payment_attempt
+                ? new Date(
+                    upcomingInvoice.next_payment_attempt * 1000
+                  ).toISOString()
+                : null,
+            }
+          : null,
+        invoices,
+      });
+    } catch (err) {
+      console.error("Error fetching billing details:", err);
       res.status(500).json({ error: "Something went wrong" });
     }
   }

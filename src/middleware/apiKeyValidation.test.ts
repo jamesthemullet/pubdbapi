@@ -137,10 +137,17 @@ describe("apiKeyValidation middleware", () => {
           isActive: true,
           OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
-        include: {
-          user: {
-            select: { id: true, approved: true, admin: true },
-          },
+        select: {
+          id: true,
+          userId: true,
+          tier: true,
+          currentHourUsage: true,
+          hourlyResetDate: true,
+          currentDayUsage: true,
+          dailyResetDate: true,
+          currentMonthUsage: true,
+          monthlyResetDate: true,
+          user: { select: { id: true, approved: true, admin: true } },
         },
       });
       expect(res.status).toHaveBeenCalledWith(401);
@@ -183,6 +190,12 @@ describe("apiKeyValidation middleware", () => {
         id: "key_2",
         userId: "user_2",
         tier: "HOBBY",
+        currentHourUsage: 20,
+        hourlyResetDate: new Date("2026-03-06T11:00:00.000Z"),
+        currentDayUsage: 200,
+        dailyResetDate: new Date("2026-03-07T00:00:00.000Z"),
+        currentMonthUsage: 1000,
+        monthlyResetDate: new Date("2026-04-01T00:00:00.000Z"),
         user: { id: "user_2", approved: true, admin: false },
       });
       mockCheckRateLimit.mockResolvedValueOnce(createRateLimitResult(false));
@@ -201,7 +214,14 @@ describe("apiKeyValidation middleware", () => {
 
       await validateApiKey(req, res, next);
 
-      expect(mockCheckRateLimit).toHaveBeenCalledWith("key_2", "HOBBY");
+      expect(mockCheckRateLimit).toHaveBeenCalledWith("key_2", "HOBBY", {
+        currentHourUsage: 20,
+        hourlyResetDate: new Date("2026-03-06T11:00:00.000Z"),
+        currentDayUsage: 200,
+        dailyResetDate: new Date("2026-03-07T00:00:00.000Z"),
+        currentMonthUsage: 1000,
+        monthlyResetDate: new Date("2026-04-01T00:00:00.000Z"),
+      });
       expect(mockRecordApiUsage).toHaveBeenCalledWith(
         "key_2",
         "/pubs",
@@ -248,6 +268,15 @@ describe("apiKeyValidation middleware", () => {
           requestsPerMonth: 100000,
           allowLocationSearch: true,
           allowStats: true,
+        },
+        rateLimitResult: {
+          allowed: true,
+          remaining: { hour: 10, day: 90, month: 900 },
+          resetTimes: {
+            hour: new Date("2026-03-06T11:00:00.000Z"),
+            day: new Date("2026-03-07T00:00:00.000Z"),
+            month: new Date("2026-04-01T00:00:00.000Z"),
+          },
         },
       });
       expect(res.set).toHaveBeenCalledWith({
