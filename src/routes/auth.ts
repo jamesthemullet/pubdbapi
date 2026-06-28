@@ -7,6 +7,7 @@ import { addHours } from "date-fns";
 import rateLimit from "express-rate-limit";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
+import { sendApiKeyEmail } from "../utils/sendApiKeyEmail";
 import { authMiddleware } from "../middleware/auth";
 import { batchCheckRateLimits, TIER_LIMITS } from "../utils/rateLimiting";
 import { API_KEY_PERMISSIONS_BY_TIER } from "../utils/subscriptionTierConfig";
@@ -206,7 +207,7 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
   });
 
   if (!user) {
-    return res.json({ message: "If the email exists, a new API key has been generated." });
+    return res.json({ message: "If the email exists, a new API key has been generated and sent to your email." });
   }
 
   const existingKeys = await prisma.apiKey.findMany({
@@ -297,17 +298,9 @@ router.post("/forgot-api-key", registrationLimiter, async (req, res) => {
     }
   );
 
-  res.json({
-    message: "A new API key has been generated.",
-    apiKey: {
-      name: apiKey.name,
-      keyPrefix: apiKey.keyPrefix,
-      tier: apiKey.tier,
-      keyStatus: apiKey.keyStatus,
-      permissions: apiKey.permissions,
-      key: fullKey,
-    },
-  });
+  await sendApiKeyEmail(email, fullKey, tier);
+
+  res.json({ message: "If the email exists, a new API key has been generated and sent to your email." });
 });
 
 router.get("/verify", async (req, res) => {

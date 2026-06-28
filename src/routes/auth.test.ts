@@ -5,6 +5,7 @@ import router, { categorizeEditTypes } from "./auth";
 import { prisma } from "../prisma";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
 import { sendResetEmail } from "../utils/sendResetEmail";
+import { sendApiKeyEmail } from "../utils/sendApiKeyEmail";
 import { batchCheckRateLimits } from "../utils/rateLimiting";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -44,6 +45,10 @@ vi.mock("../utils/sendVerificationEmail", () => ({
 
 vi.mock("../utils/sendResetEmail", () => ({
   sendResetEmail: vi.fn(),
+}));
+
+vi.mock("../utils/sendApiKeyEmail", () => ({
+  sendApiKeyEmail: vi.fn(),
 }));
 
 vi.mock("express-rate-limit", () => ({
@@ -540,7 +545,7 @@ describe("POST /auth/forgot-api-key", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      message: "If the email exists, a new API key has been generated.",
+      message: "If the email exists, a new API key has been generated and sent to your email.",
     });
     expect(mockedUserFindUnique).toHaveBeenCalledWith({
       where: { email: "missing@example.com" },
@@ -602,15 +607,8 @@ describe("POST /auth/forgot-api-key", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.message).toBe("A new API key has been generated.");
-    expect(response.body.apiKey.name).toBe("DEVELOPER API Key");
-    expect(response.body.apiKey.tier).toBe("DEVELOPER");
-    expect(response.body.apiKey.keyStatus).toBe("ACTIVE");
-    expect(response.body.apiKey.permissions).toEqual([
-      "read:pubs",
-      "location:search",
-    ]);
-    expect(response.body.apiKey.key).toMatch(/^pk_developer_[a-f0-9]{48}$/);
+    expect(response.body.message).toBe("If the email exists, a new API key has been generated and sent to your email.");
+    expect(response.body.apiKey).toBeUndefined();
 
     expect(mockedApiKeyFindMany).toHaveBeenCalledWith({
       where: { userId: "user_1", isActive: true },
@@ -647,6 +645,13 @@ describe("POST /auth/forgot-api-key", () => {
     expect(txDeleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["key_1", "key_2"] } },
     });
+
+    const mockedSendApiKeyEmail = vi.mocked(sendApiKeyEmail);
+    expect(mockedSendApiKeyEmail).toHaveBeenCalledWith(
+      "jane@example.com",
+      expect.stringMatching(/^pk_developer_[a-f0-9]{48}$/),
+      "DEVELOPER"
+    );
   });
 
   it("preserves key tier from existing keys even when user subscriptionTier is stale", async () => {
