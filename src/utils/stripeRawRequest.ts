@@ -1,13 +1,22 @@
 import Stripe from "stripe";
 
+type StripeInternalApi = {
+  request?: (opts: {
+    method: string;
+    url: string;
+    params?: Record<string, string | number | boolean>;
+  }) => Promise<unknown>;
+};
+
 const stripeRawRequest = async (
   stripe: Stripe.Stripe,
   method: "GET" | "POST",
   path: string,
-  params?: Record<string, any>
+  params?: Record<string, string | number | boolean>
 ) => {
-  if (typeof (stripe as any).request === "function") {
-    return await (stripe as any).request({ method, url: path, params });
+  const stripeInternal = stripe as unknown as StripeInternalApi;
+  if (typeof stripeInternal.request === "function") {
+    return await stripeInternal.request({ method, url: path, params });
   }
 
   const base = "https://api.stripe.com";
@@ -23,7 +32,7 @@ const stripeRawRequest = async (
     else body = usp.toString();
   }
 
-  const fetchFn: typeof fetch = (globalThis as any).fetch;
+  const fetchFn = (globalThis as typeof globalThis & { fetch?: typeof fetch }).fetch;
   if (typeof fetchFn !== "function") {
     throw new Error(
       "No fetch available to call Stripe API; please run on Node 18+ or polyfill fetch"
@@ -41,9 +50,9 @@ const stripeRawRequest = async (
   });
 
   const text = await resp.text();
-  let json: any;
+  let json: Record<string, unknown> = {};
   try {
-    json = text ? JSON.parse(text) : {};
+    json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
   } catch (e) {
     throw new Error(`Stripe returned non-JSON response: ${text}`);
   }

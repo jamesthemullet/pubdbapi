@@ -19,7 +19,7 @@ export const PUB_AMENITY_FIELDS = [
 
 type AmenityKey = (typeof PUB_AMENITY_FIELDS)[number]["key"];
 
-export interface PubListFilters {
+export type PubListFilters = {
   city?: string;
   name?: string;
   operator?: string;
@@ -30,7 +30,7 @@ export interface PubListFilters {
   search?: string;
   amenities?: Partial<Record<AmenityKey, boolean>>;
   closedDown?: boolean;
-}
+};
 
 export function buildPubWhereClause(filters: PubListFilters) {
   const where: Record<string, unknown> = {};
