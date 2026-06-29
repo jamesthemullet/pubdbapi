@@ -10,9 +10,9 @@ import {
 import crypto from "crypto";
 import { prisma } from "../prisma";
 
-export interface ApiKeyRequest<
+export type ApiKeyRequest<
   P extends Record<string, string> = Record<string, string>
-> extends Request<P> {
+> = Request<P> & {
   apiKey?: {
     id: string;
     userId: string;
@@ -24,7 +24,7 @@ export interface ApiKeyRequest<
       resetTimes: { hour: Date; day: Date; month: Date };
     };
   };
-}
+};
 
 export const validateApiKey = async (
   req: ApiKeyRequest,

@@ -18,12 +18,11 @@ const normalizeChainName = (value?: string) => {
   return CHAIN_NAME_ALIASES[key] ?? trimmed;
 };
 
-// Extend Request interface for authenticated requests
-export interface AuthenticatedRequest<
+export type AuthenticatedRequest<
   P extends Record<string, string> = Record<string, string>
-> extends Request<P> {
+> = Request<P> & {
   user?: { userId: string; email: string };
-}
+};
 
 // Common schemas
 export const registerSchema = z.object({
@@ -118,7 +117,16 @@ export const beerGardenSchema = z.object({
   isHeated: z.boolean().optional(),
   isFamilyFriendly: z.boolean().optional(),
   petFriendly: z.boolean().optional(),
-  openingHours: z.record(z.string().max(20), z.any()).optional(),
+  openingHours: z
+    .record(
+      z.string().max(20),
+      z.object({
+        open: z.string().max(20).optional(),
+        close: z.string().max(20).optional(),
+        closed: z.boolean().optional(),
+      })
+    )
+    .optional(),
   imageUrl: z.string().url().max(2048).optional(),
   notes: z.string().max(1000).optional(),
 });

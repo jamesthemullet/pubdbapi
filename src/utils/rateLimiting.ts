@@ -2,7 +2,7 @@ import { ApiKeyTier } from "@prisma/client";
 
 import { prisma } from "../prisma";
 
-export interface TierLimits {
+export type TierLimits = {
   requestsPerHour: number;
   requestsPerDay: number;
   requestsPerMonth: number;
@@ -10,7 +10,7 @@ export interface TierLimits {
   allowStats: boolean;
   maxResults: number;
   allowClosedPubs: boolean;
-}
+};
 
 export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
   HOBBY: {
@@ -42,14 +42,14 @@ export const TIER_LIMITS: Record<ApiKeyTier, TierLimits> = {
   },
 };
 
-export interface UsageSnapshot {
+export type UsageSnapshot = {
   currentHourUsage: number;
   hourlyResetDate: Date;
   currentDayUsage: number;
   dailyResetDate: Date;
   currentMonthUsage: number;
   monthlyResetDate: Date;
-}
+};
 
 export async function checkRateLimit(
   apiKeyId: string,

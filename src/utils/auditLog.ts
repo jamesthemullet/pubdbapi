@@ -3,16 +3,16 @@ import { prisma } from "../prisma";
 type AuditAction = "CREATE" | "UPDATE" | "DELETE";
 type AuditEntity = "Pub" | "User" | "BeerGarden";
 
-interface AuditLogData {
+type AuditLogData = {
   action: AuditAction;
   entity: AuditEntity;
   entityId: string;
   userId?: string;
-  oldValues?: any;
-  newValues?: any;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
-}
+};
 
 export const createAuditLog = async (data: AuditLogData) => {
   try {
@@ -34,11 +34,11 @@ export const createAuditLog = async (data: AuditLogData) => {
 };
 
 // Helper function to get client info from request
-interface ClientInfoRequest {
+type ClientInfoRequest = {
   ip?: string;
   connection?: { remoteAddress?: string };
   get(field: string): string | undefined;
-}
+};
 
 export const getClientInfo = (req: ClientInfoRequest) => {
   return {
@@ -48,9 +48,12 @@ export const getClientInfo = (req: ClientInfoRequest) => {
 };
 
 // Helper function to compare objects and get only changed fields
-export const getChangedFields = (oldObj: any, newObj: any) => {
-  const oldValues: any = {};
-  const newValues: any = {};
+export const getChangedFields = (
+  oldObj: Record<string, unknown>,
+  newObj: Record<string, unknown>
+) => {
+  const oldValues: Record<string, unknown> = {};
+  const newValues: Record<string, unknown> = {};
 
   for (const key in newObj) {
     if (oldObj[key] !== newObj[key]) {
