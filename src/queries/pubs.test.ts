@@ -87,6 +87,16 @@ describe("buildPubWhereClause", () => {
       const where = buildPubWhereClause({});
       expect(where).toEqual({ closedDown: { not: true } });
     });
+
+    it("sets closedDown to true when explicitly requested to show closed pubs", () => {
+      const where = buildPubWhereClause({ closedDown: true });
+      expect(where.closedDown).toBe(true);
+    });
+
+    it("excludes closed pubs when closedDown is false", () => {
+      const where = buildPubWhereClause({ closedDown: false });
+      expect(where.closedDown).toEqual({ not: true });
+    });
   });
 
   describe("amenity filters", () => {
