@@ -13,6 +13,7 @@ const testState = vi.hoisted(() => ({
     mode: "ok" as "ok" | "missing" | "invalid",
     tier: "DEVELOPER" as "HOBBY" | "DEVELOPER" | "BUSINESS",
     blockedFeatures: new Set<string>(),
+    allowClosedPubs: true,
   },
   rateLimiting: {
     checkRateLimit: vi.fn(),
@@ -90,7 +91,7 @@ vi.mock("../middleware/apiKeyValidation", () => ({
         maxResultsPerRequest: 100,
         allowLocationSearch: true,
         allowStats: true,
-        allowClosedPubs: true,
+        allowClosedPubs: testState.auth.allowClosedPubs,
       },
     };
     next();
@@ -150,6 +151,8 @@ const mockedApiKeyUsageFindMany = testState.prisma.apiKeyUsage
 describe("GET /api/v1/pubs", () => {
   beforeEach(() => {
     testState.auth.mode = "ok";
+    testState.auth.tier = "DEVELOPER";
+    testState.auth.allowClosedPubs = true;
     testState.auth.blockedFeatures.clear();
     mockedListPubs.mockReset();
     mockedParsePagination.mockReset();
@@ -279,6 +282,48 @@ describe("GET /api/v1/pubs", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.filters.search).toBeNull();
+  });
+
+  it("parses amenity query params and passes them to listPubs", async () => {
+    const response = await request(app).get(
+      "/api/v1/pubs?hasFood=true&isDogFriendly=false"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedListPubs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amenities: { hasFood: true, isDogFriendly: false },
+      }),
+      expect.any(Object)
+    );
+    expect(response.body.filters.amenities).toEqual({
+      hasFood: true,
+      isDogFriendly: false,
+    });
+  });
+
+  it("passes closedDown=true to listPubs when tier allows closed pub access", async () => {
+    const response = await request(app).get("/api/v1/pubs?closedDown=true");
+
+    expect(response.status).toBe(200);
+    expect(mockedListPubs).toHaveBeenCalledWith(
+      expect.objectContaining({ closedDown: true }),
+      expect.any(Object)
+    );
+    expect(response.body.filters.closedDown).toBe(true);
+  });
+
+  it("ignores closedDown=true when tier does not allow closed pub access", async () => {
+    testState.auth.allowClosedPubs = false;
+
+    const response = await request(app).get("/api/v1/pubs?closedDown=true");
+
+    expect(response.status).toBe(200);
+    expect(mockedListPubs).toHaveBeenCalledWith(
+      expect.objectContaining({ closedDown: undefined }),
+      expect.any(Object)
+    );
+    expect(response.body.filters.closedDown).toBe(false);
   });
 });
 
@@ -532,6 +577,22 @@ describe("GET /api/v1/stats", () => {
       message: "Failed to fetch statistics",
     });
   });
+
+  it("serves stats from cache on second request without extra db calls", async () => {
+    mockedPubCount.mockResolvedValueOnce(100 as any);
+    mockedPubGroupBy
+      .mockResolvedValueOnce([{ city: "London", _count: { city: 80 } }] as any)
+      .mockResolvedValueOnce([{ operator: "Stonegate", _count: { operator: 12 } }] as any)
+      .mockResolvedValueOnce([{ borough: "Camden", _count: { borough: 9 } }] as any);
+
+    await request(app).get("/api/v1/stats");
+    const response = await request(app).get("/api/v1/stats");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(mockedPubCount).toHaveBeenCalledTimes(1);
+    expect(mockedPubGroupBy).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("GET /api/v1/filters", () => {
@@ -577,6 +638,27 @@ describe("GET /api/v1/filters", () => {
       message: "Failed to fetch filter options",
     });
   });
+
+  it("serves filters from cache on second request without extra db calls", async () => {
+    mockedPubFindMany
+      .mockResolvedValueOnce([{ city: "London" }] as any)
+      .mockResolvedValueOnce([{ operator: "Stonegate" }] as any)
+      .mockResolvedValueOnce([{ borough: "Camden" }] as any)
+      .mockResolvedValueOnce([{ area: "Westminster" }] as any);
+
+    await request(app).get("/api/v1/filters");
+    const response = await request(app).get("/api/v1/filters");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toEqual({
+      cities: ["London"],
+      operators: ["Stonegate"],
+      boroughs: ["Camden"],
+      areas: ["Westminster"],
+    });
+    expect(mockedPubFindMany).toHaveBeenCalledTimes(4);
+  });
 });
 
 describe("GET /api/v1/beer-types", () => {
@@ -615,6 +697,20 @@ describe("GET /api/v1/beer-types", () => {
       error: "Internal server error",
       message: "Failed to fetch beer types",
     });
+  });
+
+  it("serves beer types from cache on second request without extra db calls", async () => {
+    mockedBeerTypeFindMany.mockResolvedValueOnce([
+      { id: "bt_1", name: "IPA", isActive: true },
+    ] as any);
+
+    await request(app).get("/api/v1/beer-types");
+    const response = await request(app).get("/api/v1/beer-types");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toEqual([{ id: "bt_1", name: "IPA", isActive: true }]);
+    expect(mockedBeerTypeFindMany).toHaveBeenCalledTimes(1);
   });
 });
 
