@@ -54,6 +54,7 @@ model Pub {
   @@index([area])
   @@index([postcode])
   @@index([country])
+  @@index([lat, lng])
 }
 
 model BeerType {
