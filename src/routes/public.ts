@@ -253,16 +253,19 @@ router.get(
             by: ["city"],
             _count: { city: true },
             where: { city: { not: "" } },
+            orderBy: { _count: { city: "desc" } },
           }),
           prisma.pub.groupBy({
             by: ["operator"],
             where: { operator: { not: null } },
             _count: { operator: true },
+            orderBy: { _count: { operator: "desc" } },
           }),
           prisma.pub.groupBy({
             by: ["borough"],
             where: { borough: { not: null } },
             _count: { borough: true },
+            orderBy: { _count: { borough: "desc" } },
           }),
         ]);
 
@@ -275,27 +278,18 @@ router.get(
             totalOperators: operatorsCount.length,
             totalBoroughs: boroughsCount.length,
           },
-          topCities: citiesCount
-            .sort((a, b) => (b._count?.city || 0) - (a._count?.city || 0))
-            .slice(0, 10)
-            .map((city) => ({
-              name: city.city,
-              count: city._count?.city || 0,
-            })),
-          topOperators: operatorsCount
-            .sort((a, b) => b._count.operator - a._count.operator)
-            .slice(0, 10)
-            .map((op) => ({
-              name: op.operator,
-              count: op._count.operator,
-            })),
-          topBoroughs: boroughsCount
-            .sort((a, b) => b._count.borough - a._count.borough)
-            .slice(0, 10)
-            .map((borough) => ({
-              name: borough.borough,
-              count: borough._count.borough,
-            })),
+          topCities: citiesCount.slice(0, 10).map((city) => ({
+            name: city.city,
+            count: city._count?.city || 0,
+          })),
+          topOperators: operatorsCount.slice(0, 10).map((op) => ({
+            name: op.operator,
+            count: op._count.operator,
+          })),
+          topBoroughs: boroughsCount.slice(0, 10).map((borough) => ({
+            name: borough.borough,
+            count: borough._count.borough,
+          })),
         },
       };
 
