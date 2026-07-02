@@ -3,14 +3,14 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendResetEmail(email: string, resetToken: string) {
-  const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+	const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
 
-  try {
-    await resend.emails.send({
-      from: "noreply@thepubdb.com",
-      to: email,
-      subject: "Password Reset Request",
-      html: `
+	try {
+		await resend.emails.send({
+			from: "noreply@thepubdb.com",
+			to: email,
+			subject: "Password Reset Request",
+			html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #333;">Password Reset Request</h1>
           <p>We received a request to reset your password. Click the button below to reset it:</p>
@@ -36,9 +36,9 @@ export async function sendResetEmail(email: string, resetToken: string) {
           </p>
         </div>
       `,
-    });
-  } catch (error) {
-    console.error("Failed to send reset email:", error);
-    throw new Error("Failed to send reset email");
-  }
+		});
+	} catch (error) {
+		console.error("Failed to send reset email:", error);
+		throw new Error("Failed to send reset email");
+	}
 }

@@ -1,862 +1,882 @@
 import express, {
-  type NextFunction,
-  type Request,
-  type Response,
-  type Router,
+	type NextFunction,
+	type Request,
+	type Response,
+	type Router,
 } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCache } from "../utils/cache";
 
 const testState = vi.hoisted(() => ({
-  auth: {
-    mode: "ok" as "ok" | "missing" | "invalid",
-    tier: "DEVELOPER" as "HOBBY" | "DEVELOPER" | "BUSINESS",
-    blockedFeatures: new Set<string>(),
-  },
-  rateLimiting: {
-    checkRateLimit: vi.fn(),
-  },
-  prisma: {
-    pub: {
-      findMany: vi.fn(),
-      count: vi.fn(),
-      groupBy: vi.fn(),
-    },
-    beerType: {
-      findMany: vi.fn(),
-    },
-    apiKeyUsage: {
-      findMany: vi.fn(),
-    },
-  },
-  queries: {
-    listPubs: vi.fn(),
-    getPubById: vi.fn(),
-    parsePagination: vi.fn(),
-  },
+	auth: {
+		mode: "ok" as "ok" | "missing" | "invalid",
+		tier: "DEVELOPER" as "HOBBY" | "DEVELOPER" | "BUSINESS",
+		blockedFeatures: new Set<string>(),
+	},
+	rateLimiting: {
+		checkRateLimit: vi.fn(),
+	},
+	prisma: {
+		pub: {
+			findMany: vi.fn(),
+			count: vi.fn(),
+			groupBy: vi.fn(),
+		},
+		beerType: {
+			findMany: vi.fn(),
+		},
+		apiKeyUsage: {
+			findMany: vi.fn(),
+		},
+	},
+	queries: {
+		listPubs: vi.fn(),
+		getPubById: vi.fn(),
+		parsePagination: vi.fn(),
+	},
 }));
 
 vi.mock("../prisma", () => ({
-  prisma: testState.prisma,
+	prisma: testState.prisma,
 }));
 
 vi.mock("../utils/rateLimiting", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("../utils/rateLimiting")>();
-  return {
-    ...original,
-    checkRateLimit: testState.rateLimiting.checkRateLimit,
-  };
+	const original =
+		await importOriginal<typeof import("../utils/rateLimiting")>();
+	return {
+		...original,
+		checkRateLimit: testState.rateLimiting.checkRateLimit,
+	};
 });
 
 vi.mock("../queries/pubs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../queries/pubs")>();
-  return {
-    ...actual,
-    listPubs: testState.queries.listPubs,
-    getPubById: testState.queries.getPubById,
-    parsePagination: testState.queries.parsePagination,
-  };
+	const actual = await importOriginal<typeof import("../queries/pubs")>();
+	return {
+		...actual,
+		listPubs: testState.queries.listPubs,
+		getPubById: testState.queries.getPubById,
+		parsePagination: testState.queries.parsePagination,
+	};
 });
 
 vi.mock("../middleware/apiKeyValidation", () => ({
-  validateApiKey: vi.fn((req: Request, res: Response, next: NextFunction) => {
-    if (testState.auth.mode === "missing") {
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized",
-        message:
-          "API key is required. Include it in the X-API-Key header.",
-      });
-    }
+	validateApiKey: vi.fn((req: Request, res: Response, next: NextFunction) => {
+		if (testState.auth.mode === "missing") {
+			return res.status(401).json({
+				success: false,
+				error: "Unauthorized",
+				message: "API key is required. Include it in the X-API-Key header.",
+			});
+		}
 
-    if (testState.auth.mode === "invalid") {
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized",
-        message: "Invalid or expired API key.",
-      });
-    }
+		if (testState.auth.mode === "invalid") {
+			return res.status(401).json({
+				success: false,
+				error: "Unauthorized",
+				message: "Invalid or expired API key.",
+			});
+		}
 
-    (req as Request & { apiKey: unknown }).apiKey = {
-      id: "k_1",
-      userId: "u_1",
-      tier: testState.auth.tier,
-      limits: {
-        requestsPerHour: 1000,
-        requestsPerDay: 10000,
-        requestsPerMonth: 100000,
-        maxResultsPerRequest: 100,
-        allowLocationSearch: true,
-        allowStats: true,
-        allowClosedPubs: true,
-      },
-    };
-    next();
-  }),
-  requireTierAccess: vi.fn((requiredFeature: string) => {
-    return (_req: Request, res: Response, next: NextFunction) => {
-      if (testState.auth.blockedFeatures.has(requiredFeature)) {
-        return res.status(403).json({
-          success: false,
-          error: "Forbidden",
-          message: `This feature is not available in your testing tier. Please upgrade your plan.`,
-          tier: "TESTING",
-          availableIn: ["DEVELOPER", "BUSINESS"],
-        });
-      }
-      next();
-    };
-  }),
-  enforceTierLimits: vi.fn(
-    (_req: Request, _res: Response, next: NextFunction) => next()
-  ),
+		(req as Request & { apiKey: unknown }).apiKey = {
+			id: "k_1",
+			userId: "u_1",
+			tier: testState.auth.tier,
+			limits: {
+				requestsPerHour: 1000,
+				requestsPerDay: 10000,
+				requestsPerMonth: 100000,
+				maxResultsPerRequest: 100,
+				allowLocationSearch: true,
+				allowStats: true,
+				allowClosedPubs: true,
+			},
+		};
+		next();
+	}),
+	requireTierAccess: vi.fn((requiredFeature: string) => {
+		return (_req: Request, res: Response, next: NextFunction) => {
+			if (testState.auth.blockedFeatures.has(requiredFeature)) {
+				return res.status(403).json({
+					success: false,
+					error: "Forbidden",
+					message: `This feature is not available in your testing tier. Please upgrade your plan.`,
+					tier: "TESTING",
+					availableIn: ["DEVELOPER", "BUSINESS"],
+				});
+			}
+			next();
+		};
+	}),
+	enforceTierLimits: vi.fn(
+		(_req: Request, _res: Response, next: NextFunction) => next(),
+	),
 }));
 
 let app: express.Express;
 
 beforeAll(async () => {
-  const { default: router } = (await import("./public.js")) as unknown as {
-    default: Router;
-  };
+	const { default: router } = (await import("./public.js")) as unknown as {
+		default: Router;
+	};
 
-  app = express();
-  app.use(express.json());
-  app.use("/api/v1", router);
+	app = express();
+	app.use(express.json());
+	app.use("/api/v1", router);
 });
 
 const mockedPubFindMany = testState.prisma.pub
-  .findMany as unknown as ReturnType<typeof vi.fn>;
+	.findMany as unknown as ReturnType<typeof vi.fn>;
 const mockedPubCount = testState.prisma.pub.count as unknown as ReturnType<
-  typeof vi.fn
+	typeof vi.fn
 >;
 const mockedPubGroupBy = testState.prisma.pub.groupBy as unknown as ReturnType<
-  typeof vi.fn
+	typeof vi.fn
 >;
 const mockedBeerTypeFindMany = testState.prisma.beerType
-  .findMany as unknown as ReturnType<typeof vi.fn>;
+	.findMany as unknown as ReturnType<typeof vi.fn>;
 const mockedListPubs = testState.queries.listPubs as unknown as ReturnType<
-  typeof vi.fn
+	typeof vi.fn
 >;
 const mockedGetPubById = testState.queries.getPubById as unknown as ReturnType<
-  typeof vi.fn
+	typeof vi.fn
 >;
 const mockedParsePagination = testState.queries
-  .parsePagination as unknown as ReturnType<typeof vi.fn>;
+	.parsePagination as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyUsageFindMany = testState.prisma.apiKeyUsage
-  .findMany as unknown as ReturnType<typeof vi.fn>;
+	.findMany as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /api/v1/pubs", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    testState.auth.blockedFeatures.clear();
-    mockedListPubs.mockReset();
-    mockedParsePagination.mockReset();
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		testState.auth.blockedFeatures.clear();
+		mockedListPubs.mockReset();
+		mockedParsePagination.mockReset();
 
-    mockedParsePagination.mockReturnValue({
-      pageNum: 1,
-      limitNum: 50,
-      skip: 0,
-    });
-    mockedListPubs.mockResolvedValue({
-      pubs: [{ id: "pub_1", name: "The Crown" }],
-      total: 1,
-    });
-  });
+		mockedParsePagination.mockReturnValue({
+			pageNum: 1,
+			limitNum: 50,
+			skip: 0,
+		});
+		mockedListPubs.mockResolvedValue({
+			pubs: [{ id: "pub_1", name: "The Crown" }],
+			total: 1,
+		});
+	});
 
-  it("returns paginated pubs with filters", async () => {
-    const response = await request(app).get(
-      "/api/v1/pubs?city=London&name=Crown&page=2&limit=10"
-    );
+	it("returns paginated pubs with filters", async () => {
+		const response = await request(app).get(
+			"/api/v1/pubs?city=London&name=Crown&page=2&limit=10",
+		);
 
-    expect(response.status).toBe(200);
-    expect(mockedParsePagination).toHaveBeenCalledWith("2", "10");
-    expect(mockedListPubs).toHaveBeenCalledWith(
-      {
-        city: "London",
-        name: "Crown",
-        operator: undefined,
-        borough: undefined,
-        postcode: undefined,
-        area: undefined,
-        country: undefined,
-        search: undefined,
-        amenities: undefined,
-        closedDown: undefined,
-      },
-      { skip: 0, limitNum: 50 }
-    );
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toEqual([{ id: "pub_1", name: "The Crown" }]);
-    expect(response.body.pagination).toMatchObject({
-      page: 1,
-      limit: 50,
-      total: 1,
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(mockedParsePagination).toHaveBeenCalledWith("2", "10");
+		expect(mockedListPubs).toHaveBeenCalledWith(
+			{
+				city: "London",
+				name: "Crown",
+				operator: undefined,
+				borough: undefined,
+				postcode: undefined,
+				area: undefined,
+				country: undefined,
+				search: undefined,
+				amenities: undefined,
+				closedDown: undefined,
+			},
+			{ skip: 0, limitNum: 50 },
+		);
+		expect(response.body.success).toBe(true);
+		expect(response.body.data).toEqual([{ id: "pub_1", name: "The Crown" }]);
+		expect(response.body.pagination).toMatchObject({
+			page: 1,
+			limit: 50,
+			total: 1,
+		});
+	});
 
-  it("maps all remaining filter query params", async () => {
-    const response = await request(app).get(
-      "/api/v1/pubs?operator=Stonegate&borough=Camden&postcode=NW1%206XE&area=North&country=GB"
-    );
+	it("maps all remaining filter query params", async () => {
+		const response = await request(app).get(
+			"/api/v1/pubs?operator=Stonegate&borough=Camden&postcode=NW1%206XE&area=North&country=GB",
+		);
 
-    expect(response.status).toBe(200);
-    expect(mockedListPubs).toHaveBeenCalledWith(
-      {
-        city: undefined,
-        name: undefined,
-        operator: "Stonegate",
-        borough: "Camden",
-        postcode: "NW1 6XE",
-        area: "North",
-        country: "GB",
-        search: undefined,
-        amenities: undefined,
-        closedDown: undefined,
-      },
-      { skip: 0, limitNum: 50 }
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(mockedListPubs).toHaveBeenCalledWith(
+			{
+				city: undefined,
+				name: undefined,
+				operator: "Stonegate",
+				borough: "Camden",
+				postcode: "NW1 6XE",
+				area: "North",
+				country: "GB",
+				search: undefined,
+				amenities: undefined,
+				closedDown: undefined,
+			},
+			{ skip: 0, limitNum: 50 },
+		);
+	});
 
-  it("returns null filters when query params are missing", async () => {
-    const response = await request(app).get("/api/v1/pubs");
+	it("returns null filters when query params are missing", async () => {
+		const response = await request(app).get("/api/v1/pubs");
 
-    expect(response.status).toBe(200);
-    expect(response.body.filters).toEqual({
-      city: null,
-      name: null,
-      operator: null,
-      borough: null,
-      postcode: null,
-      area: null,
-      country: null,
-      search: null,
-      amenities: null,
-      closedDown: false,
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.filters).toEqual({
+			city: null,
+			name: null,
+			operator: null,
+			borough: null,
+			postcode: null,
+			area: null,
+			country: null,
+			search: null,
+			amenities: null,
+			closedDown: false,
+		});
+	});
 
-  it("returns 401 when api key is missing", async () => {
-    testState.auth.mode = "missing";
+	it("returns 401 when api key is missing", async () => {
+		testState.auth.mode = "missing";
 
-    const response = await request(app).get("/api/v1/pubs");
+		const response = await request(app).get("/api/v1/pubs");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toMatchObject({
-      success: false,
-      error: "Unauthorized",
-    });
-    expect(mockedListPubs).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toMatchObject({
+			success: false,
+			error: "Unauthorized",
+		});
+		expect(mockedListPubs).not.toHaveBeenCalled();
+	});
 
-  it("returns 500 when list query fails", async () => {
-    mockedListPubs.mockRejectedValueOnce(new Error("db failed"));
+	it("returns 500 when list query fails", async () => {
+		mockedListPubs.mockRejectedValueOnce(new Error("db failed"));
 
-    const response = await request(app).get("/api/v1/pubs");
+		const response = await request(app).get("/api/v1/pubs");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch pubs",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch pubs",
+		});
+	});
 
-  it("passes search param to listPubs and reflects it in response filters", async () => {
-    const response = await request(app).get("/api/v1/pubs?search=green");
+	it("passes search param to listPubs and reflects it in response filters", async () => {
+		const response = await request(app).get("/api/v1/pubs?search=green");
 
-    expect(response.status).toBe(200);
-    expect(mockedListPubs).toHaveBeenCalledWith(
-      expect.objectContaining({ search: "green" }),
-      expect.any(Object)
-    );
-    expect(response.body.filters.search).toBe("green");
-  });
+		expect(response.status).toBe(200);
+		expect(mockedListPubs).toHaveBeenCalledWith(
+			expect.objectContaining({ search: "green" }),
+			expect.any(Object),
+		);
+		expect(response.body.filters.search).toBe("green");
+	});
 
-  it("returns null for search filter when not provided", async () => {
-    const response = await request(app).get("/api/v1/pubs");
+	it("returns null for search filter when not provided", async () => {
+		const response = await request(app).get("/api/v1/pubs");
 
-    expect(response.status).toBe(200);
-    expect(response.body.filters.search).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.filters.search).toBeNull();
+	});
 });
 
 describe("GET /api/v1/pubs/near", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    testState.auth.blockedFeatures.clear();
-    mockedPubFindMany.mockReset();
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		testState.auth.blockedFeatures.clear();
+		mockedPubFindMany.mockReset();
+	});
 
-  it("returns 400 when lat/lng are missing", async () => {
-    const response = await request(app).get("/api/v1/pubs/near");
+	it("returns 400 when lat/lng are missing", async () => {
+		const response = await request(app).get("/api/v1/pubs/near");
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Bad request",
-      message: "Latitude and longitude are required",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Bad request",
+			message: "Latitude and longitude are required",
+		});
+	});
 
-  it("returns 400 when lat/lng are invalid", async () => {
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=abc&lng=-0.141890"
-    );
+	it("returns 400 when lat/lng are invalid", async () => {
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=abc&lng=-0.141890",
+		);
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Bad request",
-      message: "Invalid latitude, longitude, or radius values",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Bad request",
+			message: "Invalid latitude, longitude, or radius values",
+		});
+	});
 
-  it("returns 403 when tier lacks location access", async () => {
-    testState.auth.blockedFeatures.add("allowLocationSearch");
+	it("returns 403 when tier lacks location access", async () => {
+		testState.auth.blockedFeatures.add("allowLocationSearch");
 
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890"
-    );
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=51.501366&lng=-0.141890",
+		);
 
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({
-      success: false,
-      error: "Forbidden",
-    });
-  });
+		expect(response.status).toBe(403);
+		expect(response.body).toMatchObject({
+			success: false,
+			error: "Forbidden",
+		});
+	});
 
-  it("returns nearby pubs with computed distance", async () => {
-    mockedPubFindMany.mockResolvedValueOnce([
-      { id: "a", name: "Near", lat: 51.501366, lng: -0.14189 },
-      { id: "b", name: "Far", lat: 52.5, lng: -0.12 },
-      { id: "c", name: "No coords", lat: null, lng: null },
-    ] as any);
+	it("returns nearby pubs with computed distance", async () => {
+		mockedPubFindMany.mockResolvedValueOnce([
+			{ id: "a", name: "Near", lat: 51.501366, lng: -0.14189 },
+			{ id: "b", name: "Far", lat: 52.5, lng: -0.12 },
+			{ id: "c", name: "No coords", lat: null, lng: null },
+		] as any);
 
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5&limit=20"
-    );
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5&limit=20",
+		);
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toHaveLength(1);
-    expect(response.body.data[0]).toMatchObject({ id: "a", name: "Near" });
-    expect(response.body.search).toMatchObject({ radius: 5, found: 1 });
-    // DB query uses the internal bounding-box cap, not the user's limit
-    expect(mockedPubFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        take: 500,
-      })
-    );
-    expect(mockedPubFindMany).toHaveBeenCalledWith(
-      expect.not.objectContaining({ orderBy: expect.anything() })
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.data).toHaveLength(1);
+		expect(response.body.data[0]).toMatchObject({ id: "a", name: "Near" });
+		expect(response.body.search).toMatchObject({ radius: 5, found: 1 });
+		// DB query uses the internal bounding-box cap, not the user's limit
+		expect(mockedPubFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				take: 500,
+			}),
+		);
+		expect(mockedPubFindMany).toHaveBeenCalledWith(
+			expect.not.objectContaining({ orderBy: expect.anything() }),
+		);
+	});
 
-  it("applies the user limit after the radius filter, not before", async () => {
-    mockedPubFindMany.mockResolvedValueOnce([
-      { id: "mid", name: "Mid", lat: 51.505366, lng: -0.14189 },
-      { id: "close", name: "Close", lat: 51.501366, lng: -0.14189 },
-      { id: "far", name: "Far", lat: 51.511366, lng: -0.14189 },
-    ] as any);
+	it("applies the user limit after the radius filter, not before", async () => {
+		mockedPubFindMany.mockResolvedValueOnce([
+			{ id: "mid", name: "Mid", lat: 51.505366, lng: -0.14189 },
+			{ id: "close", name: "Close", lat: 51.501366, lng: -0.14189 },
+			{ id: "far", name: "Far", lat: 51.511366, lng: -0.14189 },
+		] as any);
 
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5&limit=1"
-    );
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5&limit=1",
+		);
 
-    expect(response.status).toBe(200);
-    expect(response.body.data).toHaveLength(1);
-    // The closest pub is returned, not whichever happened to be first alphabetically
-    expect(response.body.data[0].id).toBe("close");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.data).toHaveLength(1);
+		// The closest pub is returned, not whichever happened to be first alphabetically
+		expect(response.body.data[0].id).toBe("close");
+	});
 
-  it("sorts nearby pubs by ascending distance", async () => {
-    mockedPubFindMany.mockResolvedValueOnce([
-      { id: "far", name: "Farther", lat: 51.511366, lng: -0.14189 },
-      { id: "close", name: "Closer", lat: 51.501366, lng: -0.14189 },
-    ] as any);
+	it("sorts nearby pubs by ascending distance", async () => {
+		mockedPubFindMany.mockResolvedValueOnce([
+			{ id: "far", name: "Farther", lat: 51.511366, lng: -0.14189 },
+			{ id: "close", name: "Closer", lat: 51.501366, lng: -0.14189 },
+		] as any);
 
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5"
-    );
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=51.501366&lng=-0.141890&radius=5",
+		);
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toHaveLength(2);
-    expect(response.body.data[0].id).toBe("close");
-    expect(response.body.data[1].id).toBe("far");
-    expect(response.body.data[0].distance).toBeLessThanOrEqual(
-      response.body.data[1].distance
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.data).toHaveLength(2);
+		expect(response.body.data[0].id).toBe("close");
+		expect(response.body.data[1].id).toBe("far");
+		expect(response.body.data[0].distance).toBeLessThanOrEqual(
+			response.body.data[1].distance,
+		);
+	});
 
-  it("returns 500 when near lookup fails", async () => {
-    mockedPubFindMany.mockRejectedValueOnce(new Error("db failed"));
+	it("returns 500 when near lookup fails", async () => {
+		mockedPubFindMany.mockRejectedValueOnce(new Error("db failed"));
 
-    const response = await request(app).get(
-      "/api/v1/pubs/near?lat=51.501366&lng=-0.141890"
-    );
+		const response = await request(app).get(
+			"/api/v1/pubs/near?lat=51.501366&lng=-0.141890",
+		);
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to search pubs by location",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to search pubs by location",
+		});
+	});
 });
 
 describe("GET /api/v1/pubs/:id", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    mockedGetPubById.mockReset();
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		mockedGetPubById.mockReset();
+	});
 
-  it("returns a single pub", async () => {
-    mockedGetPubById.mockResolvedValueOnce({ id: "pub_1", name: "The Crown" });
+	it("returns a single pub", async () => {
+		mockedGetPubById.mockResolvedValueOnce({ id: "pub_1", name: "The Crown" });
 
-    const response = await request(app).get("/api/v1/pubs/pub_1");
+		const response = await request(app).get("/api/v1/pubs/pub_1");
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      success: true,
-      data: { id: "pub_1", name: "The Crown" },
-    });
-    expect(mockedGetPubById).toHaveBeenCalledWith("pub_1");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			success: true,
+			data: { id: "pub_1", name: "The Crown" },
+		});
+		expect(mockedGetPubById).toHaveBeenCalledWith("pub_1");
+	});
 
-  it("returns 404 when pub is missing", async () => {
-    mockedGetPubById.mockResolvedValueOnce(null);
+	it("returns 404 when pub is missing", async () => {
+		mockedGetPubById.mockResolvedValueOnce(null);
 
-    const response = await request(app).get("/api/v1/pubs/missing");
+		const response = await request(app).get("/api/v1/pubs/missing");
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Not found",
-      message: "Pub not found",
-    });
-  });
+		expect(response.status).toBe(404);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Not found",
+			message: "Pub not found",
+		});
+	});
 
-  it("returns 500 when lookup throws", async () => {
-    mockedGetPubById.mockRejectedValueOnce(new Error("boom"));
+	it("returns 500 when lookup throws", async () => {
+		mockedGetPubById.mockRejectedValueOnce(new Error("boom"));
 
-    const response = await request(app).get("/api/v1/pubs/pub_1");
+		const response = await request(app).get("/api/v1/pubs/pub_1");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch pub",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch pub",
+		});
+	});
 });
 
 describe("GET /api/v1/stats", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    testState.auth.blockedFeatures.clear();
-    mockedPubCount.mockReset();
-    mockedPubGroupBy.mockReset();
-    clearCache("stats");
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		testState.auth.blockedFeatures.clear();
+		mockedPubCount.mockReset();
+		mockedPubGroupBy.mockReset();
+		clearCache("stats");
+	});
 
-  it("returns aggregate stats with sorted top lists", async () => {
-    mockedPubCount.mockResolvedValueOnce(100 as any);
-    mockedPubGroupBy
-      .mockResolvedValueOnce([
-        { city: "NoCountCity" },
-        { city: "London", _count: { city: 80 } },
-        { city: "Bristol", _count: { city: 20 } },
-      ] as any)
-      .mockResolvedValueOnce([
-        { operator: "Small Group", _count: { operator: 2 } },
-        { operator: "Stonegate", _count: { operator: 12 } },
-        { operator: "Medium Group", _count: { operator: 7 } },
-      ] as any)
-      .mockResolvedValueOnce([
-        { borough: "Hackney", _count: { borough: 3 } },
-        { borough: "Camden", _count: { borough: 9 } },
-        { borough: "Westminster", _count: { borough: 6 } },
-      ] as any);
+	it("returns aggregate stats with sorted top lists", async () => {
+		mockedPubCount.mockResolvedValueOnce(100 as any);
+		mockedPubGroupBy
+			.mockResolvedValueOnce([
+				{ city: "NoCountCity" },
+				{ city: "London", _count: { city: 80 } },
+				{ city: "Bristol", _count: { city: 20 } },
+			] as any)
+			.mockResolvedValueOnce([
+				{ operator: "Small Group", _count: { operator: 2 } },
+				{ operator: "Stonegate", _count: { operator: 12 } },
+				{ operator: "Medium Group", _count: { operator: 7 } },
+			] as any)
+			.mockResolvedValueOnce([
+				{ borough: "Hackney", _count: { borough: 3 } },
+				{ borough: "Camden", _count: { borough: 9 } },
+				{ borough: "Westminster", _count: { borough: 6 } },
+			] as any);
 
-    const response = await request(app).get("/api/v1/stats");
+		const response = await request(app).get("/api/v1/stats");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.overview).toEqual({
-      totalPubs: 100,
-      totalCities: 3,
-      totalOperators: 3,
-      totalBoroughs: 3,
-    });
-    expect(response.body.data.topCities).toEqual([
-      { name: "London", count: 80 },
-      { name: "Bristol", count: 20 },
-      { name: "NoCountCity", count: 0 },
-    ]);
-    expect(response.body.data.topOperators).toEqual([
-      { name: "Stonegate", count: 12 },
-      { name: "Medium Group", count: 7 },
-      { name: "Small Group", count: 2 },
-    ]);
-    expect(response.body.data.topBoroughs).toEqual([
-      { name: "Camden", count: 9 },
-      { name: "Westminster", count: 6 },
-      { name: "Hackney", count: 3 },
-    ]);
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.data.overview).toEqual({
+			totalPubs: 100,
+			totalCities: 3,
+			totalOperators: 3,
+			totalBoroughs: 3,
+		});
+		expect(response.body.data.topCities).toEqual([
+			{ name: "London", count: 80 },
+			{ name: "Bristol", count: 20 },
+			{ name: "NoCountCity", count: 0 },
+		]);
+		expect(response.body.data.topOperators).toEqual([
+			{ name: "Stonegate", count: 12 },
+			{ name: "Medium Group", count: 7 },
+			{ name: "Small Group", count: 2 },
+		]);
+		expect(response.body.data.topBoroughs).toEqual([
+			{ name: "Camden", count: 9 },
+			{ name: "Westminster", count: 6 },
+			{ name: "Hackney", count: 3 },
+		]);
+	});
 
-  it("returns 403 when tier lacks stats access", async () => {
-    testState.auth.blockedFeatures.add("allowStats");
+	it("returns 403 when tier lacks stats access", async () => {
+		testState.auth.blockedFeatures.add("allowStats");
 
-    const response = await request(app).get("/api/v1/stats");
+		const response = await request(app).get("/api/v1/stats");
 
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({
-      success: false,
-      error: "Forbidden",
-    });
-  });
+		expect(response.status).toBe(403);
+		expect(response.body).toMatchObject({
+			success: false,
+			error: "Forbidden",
+		});
+	});
 
-  it("returns 500 when stats query fails", async () => {
-    mockedPubCount.mockRejectedValueOnce(new Error("db down"));
+	it("returns 500 when stats query fails", async () => {
+		mockedPubCount.mockRejectedValueOnce(new Error("db down"));
 
-    const response = await request(app).get("/api/v1/stats");
+		const response = await request(app).get("/api/v1/stats");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch statistics",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch statistics",
+		});
+	});
 });
 
 describe("GET /api/v1/filters", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    mockedPubFindMany.mockReset();
-    clearCache("filters");
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		mockedPubFindMany.mockReset();
+		clearCache("filters");
+	});
 
-  it("returns distinct filter values", async () => {
-    mockedPubFindMany
-      .mockResolvedValueOnce([{ city: "London" }, { city: "" }] as any)
-      .mockResolvedValueOnce([
-        { operator: "Stonegate" },
-        { operator: null },
-      ] as any)
-      .mockResolvedValueOnce([{ borough: "Camden" }, { borough: null }] as any)
-      .mockResolvedValueOnce([{ area: "Westminster" }, { area: null }] as any);
+	it("returns distinct filter values", async () => {
+		mockedPubFindMany
+			.mockResolvedValueOnce([{ city: "London" }, { city: "" }] as any)
+			.mockResolvedValueOnce([
+				{ operator: "Stonegate" },
+				{ operator: null },
+			] as any)
+			.mockResolvedValueOnce([{ borough: "Camden" }, { borough: null }] as any)
+			.mockResolvedValueOnce([{ area: "Westminster" }, { area: null }] as any);
 
-    const response = await request(app).get("/api/v1/filters");
+		const response = await request(app).get("/api/v1/filters");
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      success: true,
-      data: {
-        cities: ["London"],
-        operators: ["Stonegate"],
-        boroughs: ["Camden"],
-        areas: ["Westminster"],
-      },
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			success: true,
+			data: {
+				cities: ["London"],
+				operators: ["Stonegate"],
+				boroughs: ["Camden"],
+				areas: ["Westminster"],
+			},
+		});
+	});
 
-  it("returns 500 when filter lookup fails", async () => {
-    mockedPubFindMany.mockRejectedValueOnce(new Error("db failed"));
+	it("returns 500 when filter lookup fails", async () => {
+		mockedPubFindMany.mockRejectedValueOnce(new Error("db failed"));
 
-    const response = await request(app).get("/api/v1/filters");
+		const response = await request(app).get("/api/v1/filters");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch filter options",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch filter options",
+		});
+	});
 });
 
 describe("GET /api/v1/beer-types", () => {
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    mockedBeerTypeFindMany.mockReset();
-    clearCache("beer-types");
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		mockedBeerTypeFindMany.mockReset();
+		clearCache("beer-types");
+	});
 
-  it("returns active beer types", async () => {
-    mockedBeerTypeFindMany.mockResolvedValueOnce([
-      { id: "bt_1", name: "IPA", isActive: true },
-    ] as any);
+	it("returns active beer types", async () => {
+		mockedBeerTypeFindMany.mockResolvedValueOnce([
+			{ id: "bt_1", name: "IPA", isActive: true },
+		] as any);
 
-    const response = await request(app).get("/api/v1/beer-types");
+		const response = await request(app).get("/api/v1/beer-types");
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      success: true,
-      data: [{ id: "bt_1", name: "IPA", isActive: true }],
-    });
-    expect(mockedBeerTypeFindMany).toHaveBeenCalledWith({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			success: true,
+			data: [{ id: "bt_1", name: "IPA", isActive: true }],
+		});
+		expect(mockedBeerTypeFindMany).toHaveBeenCalledWith({
+			where: { isActive: true },
+			orderBy: { name: "asc" },
+		});
+	});
 
-  it("returns 500 when beer type lookup fails", async () => {
-    mockedBeerTypeFindMany.mockRejectedValueOnce(new Error("db failed"));
+	it("returns 500 when beer type lookup fails", async () => {
+		mockedBeerTypeFindMany.mockRejectedValueOnce(new Error("db failed"));
 
-    const response = await request(app).get("/api/v1/beer-types");
+		const response = await request(app).get("/api/v1/beer-types");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch beer types",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch beer types",
+		});
+	});
 });
 
 describe("GET /api/v1/info", () => {
-  beforeEach(() => {
-    testState.auth.mode = "missing";
-  });
+	beforeEach(() => {
+		testState.auth.mode = "missing";
+	});
 
-  it("returns API info without requiring a key", async () => {
-    const response = await request(app).get("/api/v1/info");
+	it("returns API info without requiring a key", async () => {
+		const response = await request(app).get("/api/v1/info");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.api.name).toBe("Pub Database Public API");
-    expect(response.body.endpoints["GET /api/v1/pubs"]).toBeDefined();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.api.name).toBe("Pub Database Public API");
+		expect(response.body.endpoints["GET /api/v1/pubs"]).toBeDefined();
+	});
 });
 
 describe("GET /api/v1/usage", () => {
-  const resetTimes = {
-    hour: new Date("2026-04-29T11:00:00Z"),
-    day: new Date("2026-04-30T00:00:00Z"),
-    month: new Date("2026-05-01T00:00:00Z"),
-  };
+	const resetTimes = {
+		hour: new Date("2026-04-29T11:00:00Z"),
+		day: new Date("2026-04-30T00:00:00Z"),
+		month: new Date("2026-05-01T00:00:00Z"),
+	};
 
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    testState.auth.tier = "DEVELOPER";
-    testState.rateLimiting.checkRateLimit.mockReset();
-    testState.rateLimiting.checkRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: { hour: 500, day: 5000, month: 50000 },
-      resetTimes,
-    });
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		testState.auth.tier = "DEVELOPER";
+		testState.rateLimiting.checkRateLimit.mockReset();
+		testState.rateLimiting.checkRateLimit.mockResolvedValue({
+			allowed: true,
+			remaining: { hour: 500, day: 5000, month: 50000 },
+			resetTimes,
+		});
+	});
 
-  it("returns 401 when API key is missing", async () => {
-    testState.auth.mode = "missing";
+	it("returns 401 when API key is missing", async () => {
+		testState.auth.mode = "missing";
 
-    const response = await request(app).get("/api/v1/usage");
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toMatchObject({ success: false, error: "Unauthorized" });
-    expect(testState.rateLimiting.checkRateLimit).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toMatchObject({
+			success: false,
+			error: "Unauthorized",
+		});
+		expect(testState.rateLimiting.checkRateLimit).not.toHaveBeenCalled();
+	});
 
-  it("returns usage, limits, remaining, and resetTimes", async () => {
-    const response = await request(app).get("/api/v1/usage");
+	it("returns usage, limits, remaining, and resetTimes", async () => {
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.tier).toBe("DEVELOPER");
-    expect(response.body.usage).toEqual({ hour: 500, day: 5000, month: 50000 });
-    expect(response.body.limits).toEqual({
-      requestsPerHour: 1000,
-      requestsPerDay: 10000,
-      requestsPerMonth: 100000,
-    });
-    expect(response.body.remaining).toEqual({ hour: 500, day: 5000, month: 50000 });
-    expect(response.body.resetTimes).toBeDefined();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.tier).toBe("DEVELOPER");
+		expect(response.body.usage).toEqual({ hour: 500, day: 5000, month: 50000 });
+		expect(response.body.limits).toEqual({
+			requestsPerHour: 1000,
+			requestsPerDay: 10000,
+			requestsPerMonth: 100000,
+		});
+		expect(response.body.remaining).toEqual({
+			hour: 500,
+			day: 5000,
+			month: 50000,
+		});
+		expect(response.body.resetTimes).toBeDefined();
+	});
 
-  it("does not include upgrade fields when below 80% on any window", async () => {
-    const response = await request(app).get("/api/v1/usage");
+	it("does not include upgrade fields when below 80% on any window", async () => {
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upgradeAvailable).toBeUndefined();
-    expect(response.body.upgradeHint).toBeUndefined();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upgradeAvailable).toBeUndefined();
+		expect(response.body.upgradeHint).toBeUndefined();
+	});
 
-  it("includes upgradeAvailable when hour window is ≥80% consumed on HOBBY", async () => {
-    testState.auth.tier = "HOBBY";
-    // HOBBY: 20/hour — 17 used (85%) leaves 3 remaining
-    testState.rateLimiting.checkRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: { hour: 3, day: 100, month: 500 },
-      resetTimes,
-    });
+	it("includes upgradeAvailable when hour window is ≥80% consumed on HOBBY", async () => {
+		testState.auth.tier = "HOBBY";
+		// HOBBY: 20/hour — 17 used (85%) leaves 3 remaining
+		testState.rateLimiting.checkRateLimit.mockResolvedValue({
+			allowed: true,
+			remaining: { hour: 3, day: 100, month: 500 },
+			resetTimes,
+		});
 
-    const response = await request(app).get("/api/v1/usage");
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upgradeAvailable).toBe(true);
-    expect(response.body.upgradeHint).toContain("DEVELOPER");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upgradeAvailable).toBe(true);
+		expect(response.body.upgradeHint).toContain("DEVELOPER");
+	});
 
-  it("includes upgradeAvailable when month window is ≥80% consumed on DEVELOPER", async () => {
-    // DEVELOPER: 100000/month — 80000 used (80%) leaves 20000 remaining
-    testState.rateLimiting.checkRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: { hour: 500, day: 5000, month: 20000 },
-      resetTimes,
-    });
+	it("includes upgradeAvailable when month window is ≥80% consumed on DEVELOPER", async () => {
+		// DEVELOPER: 100000/month — 80000 used (80%) leaves 20000 remaining
+		testState.rateLimiting.checkRateLimit.mockResolvedValue({
+			allowed: true,
+			remaining: { hour: 500, day: 5000, month: 20000 },
+			resetTimes,
+		});
 
-    const response = await request(app).get("/api/v1/usage");
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upgradeAvailable).toBe(true);
-    expect(response.body.upgradeHint).toContain("BUSINESS");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upgradeAvailable).toBe(true);
+		expect(response.body.upgradeHint).toContain("BUSINESS");
+	});
 
-  it("does not include upgrade fields for BUSINESS tier even at ≥80%", async () => {
-    testState.auth.tier = "BUSINESS";
-    // BUSINESS: 5000/hour — 4500 used (90%) leaves 500 remaining
-    testState.rateLimiting.checkRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: { hour: 500, day: 5000, month: 50000 },
-      resetTimes,
-    });
+	it("does not include upgrade fields for BUSINESS tier even at ≥80%", async () => {
+		testState.auth.tier = "BUSINESS";
+		// BUSINESS: 5000/hour — 4500 used (90%) leaves 500 remaining
+		testState.rateLimiting.checkRateLimit.mockResolvedValue({
+			allowed: true,
+			remaining: { hour: 500, day: 5000, month: 50000 },
+			resetTimes,
+		});
 
-    const response = await request(app).get("/api/v1/usage");
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upgradeAvailable).toBeUndefined();
-    expect(response.body.upgradeHint).toBeUndefined();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upgradeAvailable).toBeUndefined();
+		expect(response.body.upgradeHint).toBeUndefined();
+	});
 
-  it("returns 500 when checkRateLimit throws", async () => {
-    testState.rateLimiting.checkRateLimit.mockRejectedValue(new Error("db down"));
+	it("returns 500 when checkRateLimit throws", async () => {
+		testState.rateLimiting.checkRateLimit.mockRejectedValue(
+			new Error("db down"),
+		);
 
-    const response = await request(app).get("/api/v1/usage");
+		const response = await request(app).get("/api/v1/usage");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch usage data",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch usage data",
+		});
+	});
 });
 
 describe("GET /api/v1/usage/history", () => {
-  const sampleHistory = [
-    {
-      id: "u_2",
-      timestamp: "2026-06-25T10:00:00.000Z",
-      endpoint: "/api/v1/pubs",
-      method: "GET",
-      statusCode: 200,
-      responseTime: 42,
-    },
-    {
-      id: "u_1",
-      timestamp: "2026-06-25T09:00:00.000Z",
-      endpoint: "/api/v1/stats",
-      method: "GET",
-      statusCode: 200,
-      responseTime: 15,
-    },
-  ];
+	const sampleHistory = [
+		{
+			id: "u_2",
+			timestamp: "2026-06-25T10:00:00.000Z",
+			endpoint: "/api/v1/pubs",
+			method: "GET",
+			statusCode: 200,
+			responseTime: 42,
+		},
+		{
+			id: "u_1",
+			timestamp: "2026-06-25T09:00:00.000Z",
+			endpoint: "/api/v1/stats",
+			method: "GET",
+			statusCode: 200,
+			responseTime: 15,
+		},
+	];
 
-  beforeEach(() => {
-    testState.auth.mode = "ok";
-    mockedApiKeyUsageFindMany.mockReset();
-    mockedApiKeyUsageFindMany.mockResolvedValue(sampleHistory);
-  });
+	beforeEach(() => {
+		testState.auth.mode = "ok";
+		mockedApiKeyUsageFindMany.mockReset();
+		mockedApiKeyUsageFindMany.mockResolvedValue(sampleHistory);
+	});
 
-  it("returns usage history with default limit", async () => {
-    const response = await request(app).get("/api/v1/usage/history");
+	it("returns usage history with default limit", async () => {
+		const response = await request(app).get("/api/v1/usage/history");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toEqual(sampleHistory);
-    expect(response.body.meta).toMatchObject({ count: 2, limit: 20, since: null, endpoint: null });
-    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { apiKeyId: "k_1" },
-        orderBy: { timestamp: "desc" },
-        take: 20,
-      })
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.data).toEqual(sampleHistory);
+		expect(response.body.meta).toMatchObject({
+			count: 2,
+			limit: 20,
+			since: null,
+			endpoint: null,
+		});
+		expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: { apiKeyId: "k_1" },
+				orderBy: { timestamp: "desc" },
+				take: 20,
+			}),
+		);
+	});
 
-  it("respects ?limit param up to 100", async () => {
-    const response = await request(app).get("/api/v1/usage/history?limit=50");
+	it("respects ?limit param up to 100", async () => {
+		const response = await request(app).get("/api/v1/usage/history?limit=50");
 
-    expect(response.status).toBe(200);
-    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 50 })
-    );
-    expect(response.body.meta.limit).toBe(50);
-  });
+		expect(response.status).toBe(200);
+		expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({ take: 50 }),
+		);
+		expect(response.body.meta.limit).toBe(50);
+	});
 
-  it("caps ?limit at 100", async () => {
-    const response = await request(app).get("/api/v1/usage/history?limit=500");
+	it("caps ?limit at 100", async () => {
+		const response = await request(app).get("/api/v1/usage/history?limit=500");
 
-    expect(response.status).toBe(200);
-    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 100 })
-    );
-    expect(response.body.meta.limit).toBe(100);
-  });
+		expect(response.status).toBe(200);
+		expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({ take: 100 }),
+		);
+		expect(response.body.meta.limit).toBe(100);
+	});
 
-  it("applies ?since filter", async () => {
-    const since = "2026-06-25T09:30:00.000Z";
-    const response = await request(app).get(`/api/v1/usage/history?since=${since}`);
+	it("applies ?since filter", async () => {
+		const since = "2026-06-25T09:30:00.000Z";
+		const response = await request(app).get(
+			`/api/v1/usage/history?since=${since}`,
+		);
 
-    expect(response.status).toBe(200);
-    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          timestamp: { gte: new Date(since) },
-        }),
-      })
-    );
-    expect(response.body.meta.since).toBe(since);
-  });
+		expect(response.status).toBe(200);
+		expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					timestamp: { gte: new Date(since) },
+				}),
+			}),
+		);
+		expect(response.body.meta.since).toBe(since);
+	});
 
-  it("applies ?endpoint filter", async () => {
-    const response = await request(app).get("/api/v1/usage/history?endpoint=/pubs");
+	it("applies ?endpoint filter", async () => {
+		const response = await request(app).get(
+			"/api/v1/usage/history?endpoint=/pubs",
+		);
 
-    expect(response.status).toBe(200);
-    expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          endpoint: { contains: "/pubs" },
-        }),
-      })
-    );
-    expect(response.body.meta.endpoint).toBe("/pubs");
-  });
+		expect(response.status).toBe(200);
+		expect(mockedApiKeyUsageFindMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					endpoint: { contains: "/pubs" },
+				}),
+			}),
+		);
+		expect(response.body.meta.endpoint).toBe("/pubs");
+	});
 
-  it("returns 401 when API key is missing", async () => {
-    testState.auth.mode = "missing";
+	it("returns 401 when API key is missing", async () => {
+		testState.auth.mode = "missing";
 
-    const response = await request(app).get("/api/v1/usage/history");
+		const response = await request(app).get("/api/v1/usage/history");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toMatchObject({ success: false, error: "Unauthorized" });
-    expect(mockedApiKeyUsageFindMany).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toMatchObject({
+			success: false,
+			error: "Unauthorized",
+		});
+		expect(mockedApiKeyUsageFindMany).not.toHaveBeenCalled();
+	});
 
-  it("returns 500 when database query fails", async () => {
-    mockedApiKeyUsageFindMany.mockRejectedValueOnce(new Error("db down"));
+	it("returns 500 when database query fails", async () => {
+		mockedApiKeyUsageFindMany.mockRejectedValueOnce(new Error("db down"));
 
-    const response = await request(app).get("/api/v1/usage/history");
+		const response = await request(app).get("/api/v1/usage/history");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      error: "Internal server error",
-      message: "Failed to fetch usage history",
-    });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({
+			success: false,
+			error: "Internal server error",
+			message: "Failed to fetch usage history",
+		});
+	});
 });
