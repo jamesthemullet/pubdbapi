@@ -3,1538 +3,1556 @@ import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
-  authUser: {
-    userId: "test-user-id",
-    email: "test@example.com",
-  } as { userId: string; email: string } | null,
-  prisma: {
-    user: {
-      update: vi.fn(),
-      findUnique: vi.fn(),
-    },
-    apiKey: {
-      create: vi.fn(),
-      updateMany: vi.fn(),
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
-    },
-  },
-  stripe: {
-    checkoutSessionsCreate: vi.fn(),
-    checkoutSessionsRetrieve: vi.fn(),
-    subscriptionsRetrieve: vi.fn(),
-    subscriptionsUpdate: vi.fn(),
-    customersRetrieve: vi.fn(),
-    invoicesCreatePreview: vi.fn(),
-    invoicesList: vi.fn(),
-  },
-  stripeRawRequest: vi.fn(),
+	authUser: {
+		userId: "test-user-id",
+		email: "test@example.com",
+	} as { userId: string; email: string } | null,
+	prisma: {
+		user: {
+			update: vi.fn(),
+			findUnique: vi.fn(),
+		},
+		apiKey: {
+			create: vi.fn(),
+			updateMany: vi.fn(),
+			findFirst: vi.fn(),
+			findMany: vi.fn(),
+		},
+	},
+	stripe: {
+		checkoutSessionsCreate: vi.fn(),
+		checkoutSessionsRetrieve: vi.fn(),
+		subscriptionsRetrieve: vi.fn(),
+		subscriptionsUpdate: vi.fn(),
+		customersRetrieve: vi.fn(),
+		invoicesCreatePreview: vi.fn(),
+		invoicesList: vi.fn(),
+	},
+	stripeRawRequest: vi.fn(),
 }));
 
 vi.mock("@prisma/client", () => ({
-  PrismaClient: vi.fn(function MockPrismaClient() {
-    return testState.prisma;
-  }),
+	PrismaClient: vi.fn(function MockPrismaClient() {
+		return testState.prisma;
+	}),
 }));
 
 vi.mock("../middleware/auth", () => ({
-  authMiddleware: vi.fn((req, _res, next) => {
-    if (testState.authUser) {
-      req.user = testState.authUser;
-    }
-    next();
-  }),
+	authMiddleware: vi.fn((req, _res, next) => {
+		if (testState.authUser) {
+			req.user = testState.authUser;
+		}
+		next();
+	}),
 }));
 
 vi.mock("stripe", () => ({
-  default: vi.fn().mockImplementation(function MockStripe() {
-    return {
-      checkout: {
-        sessions: {
-          create: testState.stripe.checkoutSessionsCreate,
-          retrieve: testState.stripe.checkoutSessionsRetrieve,
-        },
-      },
-      subscriptions: {
-        retrieve: testState.stripe.subscriptionsRetrieve,
-        update: testState.stripe.subscriptionsUpdate,
-      },
-      customers: {
-        retrieve: testState.stripe.customersRetrieve,
-      },
-      invoices: {
-        createPreview: testState.stripe.invoicesCreatePreview,
-        list: testState.stripe.invoicesList,
-      },
-    };
-  }),
+	default: vi.fn().mockImplementation(function MockStripe() {
+		return {
+			checkout: {
+				sessions: {
+					create: testState.stripe.checkoutSessionsCreate,
+					retrieve: testState.stripe.checkoutSessionsRetrieve,
+				},
+			},
+			subscriptions: {
+				retrieve: testState.stripe.subscriptionsRetrieve,
+				update: testState.stripe.subscriptionsUpdate,
+			},
+			customers: {
+				retrieve: testState.stripe.customersRetrieve,
+			},
+			invoices: {
+				createPreview: testState.stripe.invoicesCreatePreview,
+				list: testState.stripe.invoicesList,
+			},
+		};
+	}),
 }));
 
 vi.mock("../utils/stripeRawRequest", () => ({
-  default: testState.stripeRawRequest,
+	default: testState.stripeRawRequest,
 }));
 
 let app: express.Express;
 
 beforeAll(async () => {
-  process.env.STRIPE_SECRET_KEY = "sk_test_123";
-  const { default: router } = (await import("./payments.js")) as unknown as { default: Router };
+	process.env.STRIPE_SECRET_KEY = "sk_test_123";
+	const { default: router } = (await import("./payments.js")) as unknown as {
+		default: Router;
+	};
 
-  app = express();
-  app.use(express.json());
-  app.use("/payments", router);
+	app = express();
+	app.use(express.json());
+	app.use("/payments", router);
 });
 
 const mockedUserUpdate = testState.prisma.user.update as unknown as ReturnType<
-  typeof vi.fn
+	typeof vi.fn
 >;
 const mockedUserFindUnique = testState.prisma.user
-  .findUnique as unknown as ReturnType<typeof vi.fn>;
+	.findUnique as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyCreate = testState.prisma.apiKey
-  .create as unknown as ReturnType<typeof vi.fn>;
+	.create as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyUpdateMany = testState.prisma.apiKey
-  .updateMany as unknown as ReturnType<typeof vi.fn>;
+	.updateMany as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyFindFirst = testState.prisma.apiKey
-  .findFirst as unknown as ReturnType<typeof vi.fn>;
+	.findFirst as unknown as ReturnType<typeof vi.fn>;
 const mockedCheckoutSessionsCreate = testState.stripe
-  .checkoutSessionsCreate as unknown as ReturnType<typeof vi.fn>;
+	.checkoutSessionsCreate as unknown as ReturnType<typeof vi.fn>;
 const mockedCheckoutSessionsRetrieve = testState.stripe
-  .checkoutSessionsRetrieve as unknown as ReturnType<typeof vi.fn>;
+	.checkoutSessionsRetrieve as unknown as ReturnType<typeof vi.fn>;
 const mockedSubscriptionsRetrieve = testState.stripe
-  .subscriptionsRetrieve as unknown as ReturnType<typeof vi.fn>;
+	.subscriptionsRetrieve as unknown as ReturnType<typeof vi.fn>;
 const mockedSubscriptionsUpdate = testState.stripe
-  .subscriptionsUpdate as unknown as ReturnType<typeof vi.fn>;
+	.subscriptionsUpdate as unknown as ReturnType<typeof vi.fn>;
 const mockedStripeRawRequest =
-  testState.stripeRawRequest as unknown as ReturnType<typeof vi.fn>;
+	testState.stripeRawRequest as unknown as ReturnType<typeof vi.fn>;
 const mockedApiKeyFindMany = testState.prisma.apiKey
-  .findMany as unknown as ReturnType<typeof vi.fn>;
+	.findMany as unknown as ReturnType<typeof vi.fn>;
 const mockedCustomersRetrieve = testState.stripe
-  .customersRetrieve as unknown as ReturnType<typeof vi.fn>;
+	.customersRetrieve as unknown as ReturnType<typeof vi.fn>;
 const mockedInvoicesCreatePreview = testState.stripe
-  .invoicesCreatePreview as unknown as ReturnType<typeof vi.fn>;
+	.invoicesCreatePreview as unknown as ReturnType<typeof vi.fn>;
 const mockedInvoicesList = testState.stripe
-  .invoicesList as unknown as ReturnType<typeof vi.fn>;
+	.invoicesList as unknown as ReturnType<typeof vi.fn>;
 
 describe("POST /payments/subscribe-to-hobby", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedUserUpdate.mockReset();
-    mockedApiKeyCreate.mockReset();
-    mockedApiKeyFindFirst.mockReset();
-  });
+		mockedUserUpdate.mockReset();
+		mockedApiKeyCreate.mockReset();
+		mockedApiKeyFindFirst.mockReset();
+	});
 
-  it("returns 409 when user already has a hobby api key", async () => {
-    mockedApiKeyFindFirst.mockResolvedValueOnce({ id: "existing-key-id" } as any);
+	it("returns 409 when user already has a hobby api key", async () => {
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			id: "existing-key-id",
+		} as any);
 
-    const response = await request(app).post("/payments/subscribe-to-hobby");
+		const response = await request(app).post("/payments/subscribe-to-hobby");
 
-    expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "You already have a hobby API key." });
-    expect(mockedUserUpdate).not.toHaveBeenCalled();
-    expect(mockedApiKeyCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(409);
+		expect(response.body).toEqual({
+			error: "You already have a hobby API key.",
+		});
+		expect(mockedUserUpdate).not.toHaveBeenCalled();
+		expect(mockedApiKeyCreate).not.toHaveBeenCalled();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post("/payments/subscribe-to-hobby");
+		const response = await request(app).post("/payments/subscribe-to-hobby");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-    expect(mockedUserUpdate).not.toHaveBeenCalled();
-    expect(mockedApiKeyCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+		expect(mockedUserUpdate).not.toHaveBeenCalled();
+		expect(mockedApiKeyCreate).not.toHaveBeenCalled();
+	});
 
-  it("updates subscription and creates hobby api key", async () => {
-    mockedApiKeyFindFirst.mockResolvedValueOnce(null);
+	it("updates subscription and creates hobby api key", async () => {
+		mockedApiKeyFindFirst.mockResolvedValueOnce(null);
 
-    mockedUserUpdate.mockResolvedValue({
-      id: "test-user-id",
-      subscriptionTier: "HOBBY",
-    } as any);
+		mockedUserUpdate.mockResolvedValue({
+			id: "test-user-id",
+			subscriptionTier: "HOBBY",
+		} as any);
 
-    mockedApiKeyCreate.mockResolvedValue({
-      name: "HOBBY API Key",
-      keyPrefix: "pk_hobby_abc...",
-      tier: "HOBBY",
-      keyStatus: "ACTIVE",
-      permissions: ["read:pubs"],
-    } as any);
+		mockedApiKeyCreate.mockResolvedValue({
+			name: "HOBBY API Key",
+			keyPrefix: "pk_hobby_abc...",
+			tier: "HOBBY",
+			keyStatus: "ACTIVE",
+			permissions: ["read:pubs"],
+		} as any);
 
-    const response = await request(app).post("/payments/subscribe-to-hobby");
+		const response = await request(app).post("/payments/subscribe-to-hobby");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.subscription).toEqual({
-      tier: "HOBBY",
-      status: "ACTIVE",
-      message: "Successfully subscribed to HOBBY tier (free)",
-    });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.subscription).toEqual({
+			tier: "HOBBY",
+			status: "ACTIVE",
+			message: "Successfully subscribed to HOBBY tier (free)",
+		});
 
-    expect(mockedUserUpdate).toHaveBeenCalledWith({
-      where: { id: "test-user-id" },
-      data: {
-        subscriptionTier: "HOBBY",
-        subscriptionStatus: "ACTIVE",
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
-        subscriptionStartDate: expect.any(Date),
-        subscriptionEndDate: null,
-      },
-    });
+		expect(mockedUserUpdate).toHaveBeenCalledWith({
+			where: { id: "test-user-id" },
+			data: {
+				subscriptionTier: "HOBBY",
+				subscriptionStatus: "ACTIVE",
+				stripeCustomerId: null,
+				stripeSubscriptionId: null,
+				subscriptionStartDate: expect.any(Date),
+				subscriptionEndDate: null,
+			},
+		});
 
-    expect(mockedApiKeyCreate).toHaveBeenCalledTimes(1);
-    expect(mockedApiKeyCreate.mock.calls[0][0]).toMatchObject({
-      data: {
-        name: "HOBBY API Key",
-        userId: "test-user-id",
-        tier: "HOBBY",
-        keyStatus: "ACTIVE",
-        requestsPerHour: 100,
-        requestsPerDay: 1000,
-        requestsPerMonth: 10000,
-        permissions: ["read:pubs"],
-        monthlyResetDate: expect.any(Date),
-      },
-    });
+		expect(mockedApiKeyCreate).toHaveBeenCalledTimes(1);
+		expect(mockedApiKeyCreate.mock.calls[0][0]).toMatchObject({
+			data: {
+				name: "HOBBY API Key",
+				userId: "test-user-id",
+				tier: "HOBBY",
+				keyStatus: "ACTIVE",
+				requestsPerHour: 100,
+				requestsPerDay: 1000,
+				requestsPerMonth: 10000,
+				permissions: ["read:pubs"],
+				monthlyResetDate: expect.any(Date),
+			},
+		});
 
-    expect(response.body.apiKey.name).toBe("HOBBY API Key");
-    expect(response.body.apiKey.tier).toBe("HOBBY");
-    expect(response.body.apiKey.keyStatus).toBe("ACTIVE");
-    expect(response.body.apiKey.key).toMatch(/^pk_hobby_/);
-    expect(response.body.url).toBe("http://localhost:3000/hobby-success");
-  });
+		expect(response.body.apiKey.name).toBe("HOBBY API Key");
+		expect(response.body.apiKey.tier).toBe("HOBBY");
+		expect(response.body.apiKey.keyStatus).toBe("ACTIVE");
+		expect(response.body.apiKey.key).toMatch(/^pk_hobby_/);
+		expect(response.body.url).toBe("http://localhost:3000/hobby-success");
+	});
 
-  it("returns 500 when user update fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedApiKeyFindFirst.mockResolvedValueOnce(null);
-    mockedUserUpdate.mockRejectedValue(new Error("db failure"));
+	it("returns 500 when user update fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedApiKeyFindFirst.mockResolvedValueOnce(null);
+		mockedUserUpdate.mockRejectedValue(new Error("db failure"));
 
-    const response = await request(app).post("/payments/subscribe-to-hobby");
+		const response = await request(app).post("/payments/subscribe-to-hobby");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-    expect(mockedApiKeyCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+		expect(mockedApiKeyCreate).not.toHaveBeenCalled();
+	});
 });
 
 describe("POST /payments/create-checkout-session", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedCheckoutSessionsCreate.mockReset();
-  });
+		mockedCheckoutSessionsCreate.mockReset();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post(
-      "/payments/create-checkout-session"
-    );
+		const response = await request(app).post(
+			"/payments/create-checkout-session",
+		);
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-    expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+		expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
+	});
 
-  it("returns 400 when priceId is missing", async () => {
-    const response = await request(app)
-      .post("/payments/create-checkout-session")
-      .send({});
+	it("returns 400 when priceId is missing", async () => {
+		const response = await request(app)
+			.post("/payments/create-checkout-session")
+			.send({});
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "priceId is required" });
-    expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "priceId is required" });
+		expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
+	});
 
-  it("returns 400 when priceId is invalid", async () => {
-    const response = await request(app)
-      .post("/payments/create-checkout-session")
-      .send({ priceId: "price_invalid" });
+	it("returns 400 when priceId is invalid", async () => {
+		const response = await request(app)
+			.post("/payments/create-checkout-session")
+			.send({ priceId: "price_invalid" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error: "Invalid price ID. Use /subscribe-to-hobby for free tier.",
-    });
-    expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error: "Invalid price ID. Use /subscribe-to-hobby for free tier.",
+		});
+		expect(mockedCheckoutSessionsCreate).not.toHaveBeenCalled();
+	});
 
-  it("creates checkout session for valid price", async () => {
-    mockedCheckoutSessionsCreate.mockResolvedValue({
-      url: "https://checkout.stripe.test/session_123",
-    });
+	it("creates checkout session for valid price", async () => {
+		mockedCheckoutSessionsCreate.mockResolvedValue({
+			url: "https://checkout.stripe.test/session_123",
+		});
 
-    const response = await request(app)
-      .post("/payments/create-checkout-session")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/create-checkout-session")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      url: "https://checkout.stripe.test/session_123",
-    });
-    expect(mockedCheckoutSessionsCreate).toHaveBeenCalledWith({
-      mode: "subscription",
-      payment_method_types: ["card"],
-      line_items: [{ price: "price_1S6cBZ0k31jD9MVaQH1JSrAl", quantity: 1 }],
-      success_url:
-        "http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "http://localhost:3000/",
-      customer_email: "test@example.com",
-      metadata: {
-        userId: "test-user-id",
-      },
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			url: "https://checkout.stripe.test/session_123",
+		});
+		expect(mockedCheckoutSessionsCreate).toHaveBeenCalledWith({
+			mode: "subscription",
+			payment_method_types: ["card"],
+			line_items: [{ price: "price_1S6cBZ0k31jD9MVaQH1JSrAl", quantity: 1 }],
+			success_url:
+				"http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}",
+			cancel_url: "http://localhost:3000/",
+			customer_email: "test@example.com",
+			metadata: {
+				userId: "test-user-id",
+			},
+		});
+	});
 
-  it("returns 500 when Stripe session creation fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedCheckoutSessionsCreate.mockRejectedValue(new Error("stripe failure"));
+	it("returns 500 when Stripe session creation fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedCheckoutSessionsCreate.mockRejectedValue(new Error("stripe failure"));
 
-    const response = await request(app)
-      .post("/payments/create-checkout-session")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/create-checkout-session")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 });
 
 describe("POST /payments/upgrade-estimate", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedUserFindUnique.mockReset();
-    mockedSubscriptionsRetrieve.mockReset();
-    mockedStripeRawRequest.mockReset();
-  });
+		mockedUserFindUnique.mockReset();
+		mockedSubscriptionsRetrieve.mockReset();
+		mockedStripeRawRequest.mockReset();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post("/payments/upgrade-estimate");
+		const response = await request(app).post("/payments/upgrade-estimate");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+	});
 
-  it("returns 400 when priceId is missing", async () => {
-    const response = await request(app)
-      .post("/payments/upgrade-estimate")
-      .send({});
+	it("returns 400 when priceId is missing", async () => {
+		const response = await request(app)
+			.post("/payments/upgrade-estimate")
+			.send({});
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "priceId is required" });
-    expect(mockedUserFindUnique).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "priceId is required" });
+		expect(mockedUserFindUnique).not.toHaveBeenCalled();
+	});
 
-  it("returns 404 when user is not found", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(null);
+	it("returns 404 when user is not found", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(null);
 
-    const response = await request(app)
-      .post("/payments/upgrade-estimate")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/upgrade-estimate")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
-  });
+		expect(response.status).toBe(404);
+		expect(response.body).toEqual({ error: "User not found" });
+	});
 
-  it("returns needsCheckout when user has no active Stripe subscription", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-    });
+	it("returns needsCheckout when user has no active Stripe subscription", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: null,
+			stripeSubscriptionId: null,
+		});
 
-    const response = await request(app)
-      .post("/payments/upgrade-estimate")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/upgrade-estimate")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ needsCheckout: true });
-    expect(mockedSubscriptionsRetrieve).not.toHaveBeenCalled();
-    expect(mockedStripeRawRequest).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({ needsCheckout: true });
+		expect(mockedSubscriptionsRetrieve).not.toHaveBeenCalled();
+		expect(mockedStripeRawRequest).not.toHaveBeenCalled();
+	});
 
-  it("returns computed proration estimate for valid subscription", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
+	it("returns computed proration estimate for valid subscription", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
 
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      id: "sub_123",
-      customer: "cus_123",
-      items: {
-        data: [{ id: "si_123" }],
-      },
-    });
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			id: "sub_123",
+			customer: "cus_123",
+			items: {
+				data: [{ id: "si_123" }],
+			},
+		});
 
-    mockedStripeRawRequest.mockResolvedValueOnce({
-      amount_due: 1800,
-      currency: "gbp",
-      next_payment_attempt: 1735689600,
-      lines: {
-        data: [
-          { proration: true, amount: 300 },
-          {
-            proration: false,
-            amount: 1500,
-            price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" },
-          },
-          {
-            proration: false,
-            amount: 999,
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
+		mockedStripeRawRequest.mockResolvedValueOnce({
+			amount_due: 1800,
+			currency: "gbp",
+			next_payment_attempt: 1735689600,
+			lines: {
+				data: [
+					{ proration: true, amount: 300 },
+					{
+						proration: false,
+						amount: 1500,
+						price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" },
+					},
+					{
+						proration: false,
+						amount: 999,
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
 
-    const response = await request(app)
-      .post("/payments/upgrade-estimate")
-      .send({
-        priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl",
-        prorationDate: "2026-02-10T00:00:00.000Z",
-      });
+		const response = await request(app)
+			.post("/payments/upgrade-estimate")
+			.send({
+				priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl",
+				prorationDate: "2026-02-10T00:00:00.000Z",
+			});
 
-    expect(response.status).toBe(200);
-    expect(response.body.estimatedAmount).toBe(1800);
-    expect(response.body.currency).toBe("gbp");
-    expect(response.body.prorationOnlyCharge).toBe(300);
-    expect(response.body.nextPeriodCharge).toBe(1500);
-    expect(response.body.proratedCharge).toBe(1800);
+		expect(response.status).toBe(200);
+		expect(response.body.estimatedAmount).toBe(1800);
+		expect(response.body.currency).toBe("gbp");
+		expect(response.body.prorationOnlyCharge).toBe(300);
+		expect(response.body.nextPeriodCharge).toBe(1500);
+		expect(response.body.proratedCharge).toBe(1800);
 
-    expect(mockedSubscriptionsRetrieve).toHaveBeenCalledWith("sub_123");
-    expect(mockedStripeRawRequest).toHaveBeenCalledTimes(1);
-    const stripeRawRequestCall = mockedStripeRawRequest.mock.calls[0];
-    expect(stripeRawRequestCall[1]).toBe("POST");
-    expect(stripeRawRequestCall[2]).toBe("/v1/invoices/create_preview");
-    const expectedProrationTimestamp = String(
-      Math.floor(new Date("2026-02-10T00:00:00.000Z").getTime() / 1000)
-    );
-    expect(stripeRawRequestCall[3]).toMatchObject({
-      customer: "cus_123",
-      subscription: "sub_123",
-      "subscription_details[items][0][id]": "si_123",
-      "subscription_details[items][0][price]": "price_1S6cBZ0k31jD9MVaQH1JSrAl",
-      "subscription_details[proration_date]": expectedProrationTimestamp,
-    });
-  });
+		expect(mockedSubscriptionsRetrieve).toHaveBeenCalledWith("sub_123");
+		expect(mockedStripeRawRequest).toHaveBeenCalledTimes(1);
+		const stripeRawRequestCall = mockedStripeRawRequest.mock.calls[0];
+		expect(stripeRawRequestCall[1]).toBe("POST");
+		expect(stripeRawRequestCall[2]).toBe("/v1/invoices/create_preview");
+		const expectedProrationTimestamp = String(
+			Math.floor(new Date("2026-02-10T00:00:00.000Z").getTime() / 1000),
+		);
+		expect(stripeRawRequestCall[3]).toMatchObject({
+			customer: "cus_123",
+			subscription: "sub_123",
+			"subscription_details[items][0][id]": "si_123",
+			"subscription_details[items][0][price]": "price_1S6cBZ0k31jD9MVaQH1JSrAl",
+			"subscription_details[proration_date]": expectedProrationTimestamp,
+		});
+	});
 
-  it("returns 500 when Stripe preview call fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      id: "sub_123",
-      customer: "cus_123",
-      items: {
-        data: [{ id: "si_123" }],
-      },
-    });
-    mockedStripeRawRequest.mockRejectedValueOnce(
-      new Error("stripe preview failed")
-    );
+	it("returns 500 when Stripe preview call fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			id: "sub_123",
+			customer: "cus_123",
+			items: {
+				data: [{ id: "si_123" }],
+			},
+		});
+		mockedStripeRawRequest.mockRejectedValueOnce(
+			new Error("stripe preview failed"),
+		);
 
-    const response = await request(app)
-      .post("/payments/upgrade-estimate")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/upgrade-estimate")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 });
 
 describe("POST /payments/perform-upgrade", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedUserFindUnique.mockReset();
-    mockedSubscriptionsRetrieve.mockReset();
-    mockedSubscriptionsUpdate.mockReset();
-    mockedStripeRawRequest.mockReset();
-    mockedUserUpdate.mockReset();
-    mockedApiKeyUpdateMany.mockReset();
-    mockedApiKeyFindFirst.mockReset();
-  });
+		mockedUserFindUnique.mockReset();
+		mockedSubscriptionsRetrieve.mockReset();
+		mockedSubscriptionsUpdate.mockReset();
+		mockedStripeRawRequest.mockReset();
+		mockedUserUpdate.mockReset();
+		mockedApiKeyUpdateMany.mockReset();
+		mockedApiKeyFindFirst.mockReset();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post("/payments/perform-upgrade");
+		const response = await request(app).post("/payments/perform-upgrade");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+	});
 
-  it("returns 400 when priceId is missing", async () => {
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({});
+	it("returns 400 when priceId is missing", async () => {
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({});
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "priceId is required" });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "priceId is required" });
+	});
 
-  it("returns 400 when priceId is unknown", async () => {
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_unknown" });
+	it("returns 400 when priceId is unknown", async () => {
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_unknown" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "Unknown price ID" });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "Unknown price ID" });
+	});
 
-  it("returns 404 when user is not found", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(null);
+	it("returns 404 when user is not found", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(null);
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
-  });
+		expect(response.status).toBe(404);
+		expect(response.body).toEqual({ error: "User not found" });
+	});
 
-  it("returns 400 when no existing subscription to swap", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: null,
-    });
+	it("returns 400 when no existing subscription to swap", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: null,
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error:
-        "No existing subscription to swap; create a checkout session instead",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error:
+				"No existing subscription to swap; create a checkout session instead",
+		});
+	});
 
-  it("returns 400 when subscription has no items", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: { data: [] },
-    });
+	it("returns 400 when subscription has no items", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: { data: [] },
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "Subscription has no items" });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "Subscription has no items" });
+	});
 
-  it("returns early when already on target plan", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" },
-          },
-        ],
-      },
-    });
+	it("returns early when already on target plan", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" },
+					},
+				],
+			},
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      message: "Subscription already on target plan",
-    });
-    expect(mockedSubscriptionsUpdate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			message: "Subscription already on target plan",
+		});
+		expect(mockedSubscriptionsUpdate).not.toHaveBeenCalled();
+	});
 
-  it("performs upgrade and updates user and api key", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      status: "active",
-      customer: "cus_123",
-      latest_invoice: "in_123",
-    });
-    mockedStripeRawRequest.mockResolvedValueOnce({
-      id: "in_123",
-      amount_due: 500,
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
-    mockedApiKeyFindFirst.mockResolvedValueOnce({
-      id: "key_1",
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-    });
+	it("performs upgrade and updates user and api key", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			status: "active",
+			customer: "cus_123",
+			latest_invoice: "in_123",
+		});
+		mockedStripeRawRequest.mockResolvedValueOnce({
+			id: "in_123",
+			amount_due: 500,
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			id: "key_1",
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.paidInvoice).toEqual({
-      id: "in_123",
-      amount_due: 500,
-    });
-    expect(response.body.apiKey).toMatchObject({
-      id: "key_1",
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-    });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.paidInvoice).toEqual({
+			id: "in_123",
+			amount_due: 500,
+		});
+		expect(response.body.apiKey).toMatchObject({
+			id: "key_1",
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+		});
 
-    expect(mockedSubscriptionsUpdate).toHaveBeenCalledWith("sub_123", {
-      items: [{ id: "si_123", price: "price_1S6cBZ0k31jD9MVaQH1JSrAl" }],
-      proration_behavior: "create_prorations",
-      expand: ["latest_invoice.payment_intent", "latest_invoice"],
-    });
+		expect(mockedSubscriptionsUpdate).toHaveBeenCalledWith("sub_123", {
+			items: [{ id: "si_123", price: "price_1S6cBZ0k31jD9MVaQH1JSrAl" }],
+			proration_behavior: "create_prorations",
+			expand: ["latest_invoice.payment_intent", "latest_invoice"],
+		});
 
-    expect(mockedStripeRawRequest).toHaveBeenCalledWith(
-      expect.anything(),
-      "GET",
-      "/v1/invoices/in_123"
-    );
+		expect(mockedStripeRawRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			"GET",
+			"/v1/invoices/in_123",
+		);
 
-    expect(mockedUserUpdate).toHaveBeenCalledWith({
-      where: { id: "test-user-id" },
-      data: {
-        subscriptionTier: "DEVELOPER",
-        subscriptionStatus: "ACTIVE",
-        stripeCustomerId: "cus_123",
-        stripeSubscriptionId: "sub_123",
-        subscriptionStartDate: expect.any(Date),
-        subscriptionEndDate: null,
-      },
-    });
+		expect(mockedUserUpdate).toHaveBeenCalledWith({
+			where: { id: "test-user-id" },
+			data: {
+				subscriptionTier: "DEVELOPER",
+				subscriptionStatus: "ACTIVE",
+				stripeCustomerId: "cus_123",
+				stripeSubscriptionId: "sub_123",
+				subscriptionStartDate: expect.any(Date),
+				subscriptionEndDate: null,
+			},
+		});
 
-    expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
-      where: { userId: "test-user-id", isActive: true },
-      data: {
-        name: "DEVELOPER API Key",
-        tier: "DEVELOPER",
-        requestsPerHour: 1000,
-        requestsPerDay: 10000,
-        requestsPerMonth: 100000,
-        permissions: ["read:pubs", "location:search"],
-        keyStatus: "ACTIVE",
-      },
-    });
-  });
+		expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
+			where: { userId: "test-user-id", isActive: true },
+			data: {
+				name: "DEVELOPER API Key",
+				tier: "DEVELOPER",
+				requestsPerHour: 1000,
+				requestsPerDay: 10000,
+				requestsPerMonth: 100000,
+				permissions: ["read:pubs", "location:search"],
+				keyStatus: "ACTIVE",
+			},
+		});
+	});
 
-  it("uses expanded latest_invoice object without raw fetch", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      status: "active",
-      customer: "cus_123",
-      latest_invoice: { id: "in_obj", amount_due: 777 },
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
-    mockedApiKeyFindFirst.mockResolvedValueOnce({
-      id: "key_1",
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-    });
+	it("uses expanded latest_invoice object without raw fetch", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			status: "active",
+			customer: "cus_123",
+			latest_invoice: { id: "in_obj", amount_due: 777 },
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			id: "key_1",
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.paidInvoice).toEqual({ id: "in_obj", amount_due: 777 });
-    expect(mockedStripeRawRequest).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.paidInvoice).toEqual({
+			id: "in_obj",
+			amount_due: 777,
+		});
+		expect(mockedStripeRawRequest).not.toHaveBeenCalled();
+	});
 
-  it("stores INCOMPLETE when upgraded subscription is not active", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      status: "incomplete",
-      customer: "cus_123",
-      latest_invoice: { id: "in_obj", amount_due: 777 },
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
-    mockedApiKeyFindFirst.mockResolvedValueOnce({
-      id: "key_1",
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-    });
+	it("stores INCOMPLETE when upgraded subscription is not active", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			status: "incomplete",
+			customer: "cus_123",
+			latest_invoice: { id: "in_obj", amount_due: 777 },
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			id: "key_1",
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(mockedUserUpdate).toHaveBeenCalledWith({
-      where: { id: "test-user-id" },
-      data: {
-        subscriptionTier: "DEVELOPER",
-        subscriptionStatus: "INCOMPLETE",
-        stripeCustomerId: "cus_123",
-        stripeSubscriptionId: "sub_123",
-        subscriptionStartDate: expect.any(Date),
-        subscriptionEndDate: null,
-      },
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(mockedUserUpdate).toHaveBeenCalledWith({
+			where: { id: "test-user-id" },
+			data: {
+				subscriptionTier: "DEVELOPER",
+				subscriptionStatus: "INCOMPLETE",
+				stripeCustomerId: "cus_123",
+				stripeSubscriptionId: "sub_123",
+				subscriptionStartDate: expect.any(Date),
+				subscriptionEndDate: null,
+			},
+		});
+	});
 
-  it("continues successfully when latest invoice fetch fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      status: "active",
-      customer: "cus_123",
-      latest_invoice: "in_123",
-    });
-    mockedStripeRawRequest.mockRejectedValueOnce(new Error("invoice fetch failed"));
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
-    mockedApiKeyFindFirst.mockResolvedValueOnce({
-      id: "key_1",
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-    });
+	it("continues successfully when latest invoice fetch fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			status: "active",
+			customer: "cus_123",
+			latest_invoice: "in_123",
+		});
+		mockedStripeRawRequest.mockRejectedValueOnce(
+			new Error("invoice fetch failed"),
+		);
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			id: "key_1",
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+		});
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.paidInvoice).toBeNull();
-    expect(mockedStripeRawRequest).toHaveBeenCalledWith(
-      expect.anything(),
-      "GET",
-      "/v1/invoices/in_123"
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.paidInvoice).toBeNull();
+		expect(mockedStripeRawRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			"GET",
+			"/v1/invoices/in_123",
+		);
+	});
 
-  it("returns 500 when Stripe update fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: "cus_123",
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      items: {
-        data: [
-          {
-            id: "si_123",
-            price: { id: "price_other" },
-          },
-        ],
-      },
-    });
-    mockedSubscriptionsUpdate.mockRejectedValueOnce(
-      new Error("stripe update failed")
-    );
+	it("returns 500 when Stripe update fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: "cus_123",
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			items: {
+				data: [
+					{
+						id: "si_123",
+						price: { id: "price_other" },
+					},
+				],
+			},
+		});
+		mockedSubscriptionsUpdate.mockRejectedValueOnce(
+			new Error("stripe update failed"),
+		);
 
-    const response = await request(app)
-      .post("/payments/perform-upgrade")
-      .send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
+		const response = await request(app)
+			.post("/payments/perform-upgrade")
+			.send({ priceId: "price_1S6cBZ0k31jD9MVaQH1JSrAl" });
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 });
 
 describe("POST /payments/verify-session", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedCheckoutSessionsRetrieve.mockReset();
-    mockedSubscriptionsRetrieve.mockReset();
-    mockedUserUpdate.mockReset();
-    mockedApiKeyFindMany.mockReset();
-    mockedApiKeyUpdateMany.mockReset();
-    mockedApiKeyFindFirst.mockReset();
-    mockedApiKeyCreate.mockReset();
-  });
+		mockedCheckoutSessionsRetrieve.mockReset();
+		mockedSubscriptionsRetrieve.mockReset();
+		mockedUserUpdate.mockReset();
+		mockedApiKeyFindMany.mockReset();
+		mockedApiKeyUpdateMany.mockReset();
+		mockedApiKeyFindFirst.mockReset();
+		mockedApiKeyCreate.mockReset();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post("/payments/verify-session");
+		const response = await request(app).post("/payments/verify-session");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+	});
 
-  it("returns 400 when sessionId is missing", async () => {
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({});
+	it("returns 400 when sessionId is missing", async () => {
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({});
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "sessionId is required" });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({ error: "sessionId is required" });
+	});
 
-  it("returns 403 when session does not belong to user", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "other-user-id" },
-      payment_status: "paid",
-      subscription: "sub_123",
-      customer: "cus_123",
-    });
+	it("returns 403 when session does not belong to user", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "other-user-id" },
+			payment_status: "paid",
+			subscription: "sub_123",
+			customer: "cus_123",
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "Session does not belong to user" });
-  });
+		expect(response.status).toBe(403);
+		expect(response.body).toEqual({ error: "Session does not belong to user" });
+	});
 
-  it("returns 400 when payment is not completed", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "test-user-id" },
-      payment_status: "unpaid",
-      subscription: "sub_123",
-      customer: "cus_123",
-    });
+	it("returns 400 when payment is not completed", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "test-user-id" },
+			payment_status: "unpaid",
+			subscription: "sub_123",
+			customer: "cus_123",
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error: "Payment not completed",
-      paymentStatus: "unpaid",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error: "Payment not completed",
+			paymentStatus: "unpaid",
+		});
+	});
 
-  it("returns 400 when session has no subscription", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "test-user-id" },
-      payment_status: "paid",
-      subscription: null,
-      customer: "cus_123",
-    });
+	it("returns 400 when session has no subscription", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "test-user-id" },
+			payment_status: "paid",
+			subscription: null,
+			customer: "cus_123",
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error:
-        "No subscription found. This endpoint is only for paid tiers (DEVELOPER/BUSINESS). Use /subscribe-to-hobby for free tier.",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error:
+				"No subscription found. This endpoint is only for paid tiers (DEVELOPER/BUSINESS). Use /subscribe-to-hobby for free tier.",
+		});
+	});
 
-  it("returns 400 when subscription price is unknown", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "test-user-id" },
-      payment_status: "paid",
-      subscription: "sub_123",
-      customer: "cus_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      status: "active",
-      items: { data: [{ price: { id: "price_unknown" } }] },
-    });
+	it("returns 400 when subscription price is unknown", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "test-user-id" },
+			payment_status: "paid",
+			subscription: "sub_123",
+			customer: "cus_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			status: "active",
+			items: { data: [{ price: { id: "price_unknown" } }] },
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error: "Unknown price ID. Unable to determine subscription tier.",
-    });
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error: "Unknown price ID. Unable to determine subscription tier.",
+		});
+	});
 
-  it("updates existing active keys when verifying a paid session", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "test-user-id" },
-      payment_status: "paid",
-      subscription: "sub_123",
-      customer: "cus_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      status: "active",
-      billing_cycle_anchor: 1738454400,
-      items: {
-        data: [{ price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" } }],
-      },
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyFindMany.mockResolvedValueOnce([{ id: "key_existing" }]);
-    mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
-    mockedApiKeyFindFirst.mockResolvedValueOnce({
-      name: "DEVELOPER API Key",
-      keyPrefix: "pk_dev_abc...",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-      permissions: ["read:pubs", "location:search"],
-    });
+	it("updates existing active keys when verifying a paid session", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "test-user-id" },
+			payment_status: "paid",
+			subscription: "sub_123",
+			customer: "cus_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			status: "active",
+			billing_cycle_anchor: 1738454400,
+			items: {
+				data: [{ price: { id: "price_1S6cBZ0k31jD9MVaQH1JSrAl" } }],
+			},
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyFindMany.mockResolvedValueOnce([{ id: "key_existing" }]);
+		mockedApiKeyUpdateMany.mockResolvedValueOnce({ count: 1 });
+		mockedApiKeyFindFirst.mockResolvedValueOnce({
+			name: "DEVELOPER API Key",
+			keyPrefix: "pk_dev_abc...",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+			permissions: ["read:pubs", "location:search"],
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.subscription).toMatchObject({
-      tier: "DEVELOPER",
-      status: "ACTIVE",
-      customerId: "cus_123",
-      subscriptionId: "sub_123",
-    });
-    expect(response.body.apiKey).toMatchObject({
-      name: "DEVELOPER API Key",
-      tier: "DEVELOPER",
-      keyStatus: "ACTIVE",
-    });
-    expect(response.body.apiKey.key).toBeUndefined();
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.subscription).toMatchObject({
+			tier: "DEVELOPER",
+			status: "ACTIVE",
+			customerId: "cus_123",
+			subscriptionId: "sub_123",
+		});
+		expect(response.body.apiKey).toMatchObject({
+			name: "DEVELOPER API Key",
+			tier: "DEVELOPER",
+			keyStatus: "ACTIVE",
+		});
+		expect(response.body.apiKey.key).toBeUndefined();
 
-    expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
-      where: { userId: "test-user-id", isActive: true },
-      data: {
-        name: "DEVELOPER API Key",
-        tier: "DEVELOPER",
-        requestsPerHour: 1000,
-        requestsPerDay: 10000,
-        requestsPerMonth: 100000,
-        permissions: ["read:pubs", "location:search"],
-        keyStatus: "ACTIVE",
-      },
-    });
-    expect(mockedApiKeyCreate).not.toHaveBeenCalled();
-  });
+		expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
+			where: { userId: "test-user-id", isActive: true },
+			data: {
+				name: "DEVELOPER API Key",
+				tier: "DEVELOPER",
+				requestsPerHour: 1000,
+				requestsPerDay: 10000,
+				requestsPerMonth: 100000,
+				permissions: ["read:pubs", "location:search"],
+				keyStatus: "ACTIVE",
+			},
+		});
+		expect(mockedApiKeyCreate).not.toHaveBeenCalled();
+	});
 
-  it("creates a new api key when none exist", async () => {
-    mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
-      metadata: { userId: "test-user-id" },
-      payment_status: "paid",
-      subscription: "sub_123",
-      customer: "cus_123",
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      status: "active",
-      billing_cycle_anchor: 1738454400,
-      items: {
-        data: [{ price: { id: "price_1S6cBq0k31jD9MVaRYKvxRek" } }],
-      },
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyFindMany.mockResolvedValueOnce([]);
-    mockedApiKeyCreate.mockResolvedValueOnce({
-      name: "BUSINESS API Key",
-      keyPrefix: "pk_business_abc...",
-      tier: "BUSINESS",
-      keyStatus: "ACTIVE",
-      permissions: ["read:pubs", "write:pubs", "read:stats", "location:search"],
-    });
+	it("creates a new api key when none exist", async () => {
+		mockedCheckoutSessionsRetrieve.mockResolvedValueOnce({
+			metadata: { userId: "test-user-id" },
+			payment_status: "paid",
+			subscription: "sub_123",
+			customer: "cus_123",
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			status: "active",
+			billing_cycle_anchor: 1738454400,
+			items: {
+				data: [{ price: { id: "price_1S6cBq0k31jD9MVaRYKvxRek" } }],
+			},
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyFindMany.mockResolvedValueOnce([]);
+		mockedApiKeyCreate.mockResolvedValueOnce({
+			name: "BUSINESS API Key",
+			keyPrefix: "pk_business_abc...",
+			tier: "BUSINESS",
+			keyStatus: "ACTIVE",
+			permissions: ["read:pubs", "write:pubs", "read:stats", "location:search"],
+		});
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.subscription).toMatchObject({
-      tier: "BUSINESS",
-      status: "ACTIVE",
-    });
-    expect(response.body.apiKey).toMatchObject({
-      name: "BUSINESS API Key",
-      tier: "BUSINESS",
-      keyStatus: "ACTIVE",
-    });
-    expect(response.body.apiKey.key).toMatch(/^pk_business_/);
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.subscription).toMatchObject({
+			tier: "BUSINESS",
+			status: "ACTIVE",
+		});
+		expect(response.body.apiKey).toMatchObject({
+			name: "BUSINESS API Key",
+			tier: "BUSINESS",
+			keyStatus: "ACTIVE",
+		});
+		expect(response.body.apiKey.key).toMatch(/^pk_business_/);
 
-    expect(mockedApiKeyCreate).toHaveBeenCalledWith({
-      data: {
-        name: "BUSINESS API Key",
-        keyHash: expect.any(String),
-        keyPrefix: expect.any(String),
-        userId: "test-user-id",
-        tier: "BUSINESS",
-        keyStatus: "ACTIVE",
-        requestsPerHour: 5000,
-        requestsPerDay: 50000,
-        requestsPerMonth: 500000,
-        permissions: [
-          "read:pubs",
-          "write:pubs",
-          "read:stats",
-          "location:search",
-        ],
-        monthlyResetDate: expect.any(Date),
-      },
-    });
-    expect(mockedApiKeyUpdateMany).not.toHaveBeenCalled();
-  });
+		expect(mockedApiKeyCreate).toHaveBeenCalledWith({
+			data: {
+				name: "BUSINESS API Key",
+				keyHash: expect.any(String),
+				keyPrefix: expect.any(String),
+				userId: "test-user-id",
+				tier: "BUSINESS",
+				keyStatus: "ACTIVE",
+				requestsPerHour: 5000,
+				requestsPerDay: 50000,
+				requestsPerMonth: 500000,
+				permissions: [
+					"read:pubs",
+					"write:pubs",
+					"read:stats",
+					"location:search",
+				],
+				monthlyResetDate: expect.any(Date),
+			},
+		});
+		expect(mockedApiKeyUpdateMany).not.toHaveBeenCalled();
+	});
 
-  it("returns 500 when Stripe session retrieval fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedCheckoutSessionsRetrieve.mockRejectedValueOnce(
-      new Error("stripe session failed")
-    );
+	it("returns 500 when Stripe session retrieval fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedCheckoutSessionsRetrieve.mockRejectedValueOnce(
+			new Error("stripe session failed"),
+		);
 
-    const response = await request(app)
-      .post("/payments/verify-session")
-      .send({ sessionId: "cs_test_123" });
+		const response = await request(app)
+			.post("/payments/verify-session")
+			.send({ sessionId: "cs_test_123" });
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 });
 
 describe("POST /payments/cancel-subscription", () => {
-  beforeEach(() => {
-    testState.authUser = {
-      userId: "test-user-id",
-      email: "test@example.com",
-    };
+	beforeEach(() => {
+		testState.authUser = {
+			userId: "test-user-id",
+			email: "test@example.com",
+		};
 
-    mockedUserFindUnique.mockReset();
-    mockedSubscriptionsUpdate.mockReset();
-    mockedUserUpdate.mockReset();
-    mockedApiKeyUpdateMany.mockReset();
-  });
+		mockedUserFindUnique.mockReset();
+		mockedSubscriptionsUpdate.mockReset();
+		mockedUserUpdate.mockReset();
+		mockedApiKeyUpdateMany.mockReset();
+	});
 
-  it("returns 401 when user is not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when user is not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+	});
 
-  it("returns 400 when user has no Stripe subscription", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(null);
+	it("returns 400 when user has no Stripe subscription", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(null);
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
-      error: "No Stripe subscription to cancel",
-    });
-    expect(mockedSubscriptionsUpdate).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(400);
+		expect(response.body).toEqual({
+			error: "No Stripe subscription to cancel",
+		});
+		expect(mockedSubscriptionsUpdate).not.toHaveBeenCalled();
+	});
 
-  it("cancels subscription and updates user and keys when period end exists", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      cancel_at_period_end: true,
-      current_period_end: 1738454400,
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValue({ count: 1 });
+	it("cancels subscription and updates user and keys when period end exists", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			cancel_at_period_end: true,
+			current_period_end: 1738454400,
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValue({ count: 1 });
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.subscription).toMatchObject({
-      subscriptionId: "sub_123",
-      cancelAtPeriodEnd: true,
-    });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.subscription).toMatchObject({
+			subscriptionId: "sub_123",
+			cancelAtPeriodEnd: true,
+		});
 
-    expect(mockedSubscriptionsUpdate).toHaveBeenCalledWith("sub_123", {
-      cancel_at_period_end: true,
-    });
-    expect(mockedUserUpdate).toHaveBeenCalledWith({
-      where: { id: "test-user-id" },
-      data: {
-        subscriptionStatus: "CANCELLED",
-        subscriptionEndDate: expect.any(Date),
-      },
-    });
+		expect(mockedSubscriptionsUpdate).toHaveBeenCalledWith("sub_123", {
+			cancel_at_period_end: true,
+		});
+		expect(mockedUserUpdate).toHaveBeenCalledWith({
+			where: { id: "test-user-id" },
+			data: {
+				subscriptionStatus: "CANCELLED",
+				subscriptionEndDate: expect.any(Date),
+			},
+		});
 
-    expect(mockedApiKeyUpdateMany).toHaveBeenNthCalledWith(1, {
-      where: { userId: "test-user-id" },
-      data: { keyStatus: "SCHEDULED_EXPIRE" },
-    });
-    expect(mockedApiKeyUpdateMany).toHaveBeenNthCalledWith(2, {
-      where: { userId: "test-user-id", isActive: true },
-      data: { expiresAt: expect.any(Date) },
-    });
-  });
+		expect(mockedApiKeyUpdateMany).toHaveBeenNthCalledWith(1, {
+			where: { userId: "test-user-id" },
+			data: { keyStatus: "SCHEDULED_EXPIRE" },
+		});
+		expect(mockedApiKeyUpdateMany).toHaveBeenNthCalledWith(2, {
+			where: { userId: "test-user-id", isActive: true },
+			data: { expiresAt: expect.any(Date) },
+		});
+	});
 
-  it("does not set key expiry date when period end is missing", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      cancel_at_period_end: true,
-      current_period_end: null,
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany.mockResolvedValue({ count: 1 });
+	it("does not set key expiry date when period end is missing", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			cancel_at_period_end: true,
+			current_period_end: null,
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany.mockResolvedValue({ count: 1 });
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(mockedApiKeyUpdateMany).toHaveBeenCalledTimes(1);
-    expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
-      where: { userId: "test-user-id" },
-      data: { keyStatus: "SCHEDULED_EXPIRE" },
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(mockedApiKeyUpdateMany).toHaveBeenCalledTimes(1);
+		expect(mockedApiKeyUpdateMany).toHaveBeenCalledWith({
+			where: { userId: "test-user-id" },
+			data: { keyStatus: "SCHEDULED_EXPIRE" },
+		});
+	});
 
-  it("returns 500 when Stripe update fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsUpdate.mockRejectedValueOnce(
-      new Error("stripe cancel failed")
-    );
+	it("returns 500 when Stripe update fails", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsUpdate.mockRejectedValueOnce(
+			new Error("stripe cancel failed"),
+		);
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 
-  it("still returns 200 when apiKey keyStatus update fails but continues", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeSubscriptionId: "sub_123",
-    });
-    mockedSubscriptionsUpdate.mockResolvedValueOnce({
-      id: "sub_123",
-      cancel_at_period_end: true,
-      current_period_end: 1738454400,
-    });
-    mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
-    mockedApiKeyUpdateMany
-      .mockRejectedValueOnce(new Error("db error on keyStatus update"))
-      .mockResolvedValueOnce({ count: 1 });
+	it("still returns 200 when apiKey keyStatus update fails but continues", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeSubscriptionId: "sub_123",
+		});
+		mockedSubscriptionsUpdate.mockResolvedValueOnce({
+			id: "sub_123",
+			cancel_at_period_end: true,
+			current_period_end: 1738454400,
+		});
+		mockedUserUpdate.mockResolvedValueOnce({ id: "test-user-id" });
+		mockedApiKeyUpdateMany
+			.mockRejectedValueOnce(new Error("db error on keyStatus update"))
+			.mockResolvedValueOnce({ count: 1 });
 
-    const response = await request(app).post("/payments/cancel-subscription");
+		const response = await request(app).post("/payments/cancel-subscription");
 
-    expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.subscription.subscriptionId).toBe("sub_123");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.success).toBe(true);
+		expect(response.body.subscription.subscriptionId).toBe("sub_123");
+	});
 });
 
 describe("GET /payments/billing", () => {
-  const baseUser = {
-    stripeCustomerId: "cus_123",
-    stripeSubscriptionId: "sub_123",
-    subscriptionTier: "DEVELOPER",
-    subscriptionStatus: "ACTIVE",
-    subscriptionEndDate: null,
-  };
+	const baseUser = {
+		stripeCustomerId: "cus_123",
+		stripeSubscriptionId: "sub_123",
+		subscriptionTier: "DEVELOPER",
+		subscriptionStatus: "ACTIVE",
+		subscriptionEndDate: null,
+	};
 
-  const baseCustomer = {
-    deleted: false,
-    name: "James Winfield",
-    email: "james@example.com",
-    phone: null,
-    address: {
-      city: "London",
-      country: "GB",
-      line1: "123 Pub Lane",
-      line2: null,
-      postal_code: "SW1 1AA",
-      state: null,
-    },
-    invoice_settings: {
-      default_payment_method: null,
-    },
-  };
+	const baseCustomer = {
+		deleted: false,
+		name: "James Winfield",
+		email: "james@example.com",
+		phone: null,
+		address: {
+			city: "London",
+			country: "GB",
+			line1: "123 Pub Lane",
+			line2: null,
+			postal_code: "SW1 1AA",
+			state: null,
+		},
+		invoice_settings: {
+			default_payment_method: null,
+		},
+	};
 
-  const baseSubscription = {
-    status: "active",
-    default_payment_method: {
-      card: { brand: "visa", exp_month: 12, exp_year: 2027, funding: "credit" },
-    },
-    cancel_at_period_end: false,
-    current_period_end: 1780000000,
-    items: {
-      data: [{ plan: { amount: 1999, currency: "gbp", interval: "month" } }],
-    },
-  };
+	const baseSubscription = {
+		status: "active",
+		default_payment_method: {
+			card: { brand: "visa", exp_month: 12, exp_year: 2027, funding: "credit" },
+		},
+		cancel_at_period_end: false,
+		current_period_end: 1780000000,
+		items: {
+			data: [{ plan: { amount: 1999, currency: "gbp", interval: "month" } }],
+		},
+	};
 
-  const baseUpcoming = {
-    amount_due: 1999,
-    currency: "gbp",
-    next_payment_attempt: 1780000000,
-  };
+	const baseUpcoming = {
+		amount_due: 1999,
+		currency: "gbp",
+		next_payment_attempt: 1780000000,
+	};
 
-  const baseInvoiceList = {
-    data: [
-      {
-        created: 1760000000,
-        amount_paid: 1999,
-        currency: "gbp",
-        status: "paid",
-        description: null,
-        lines: { data: [{ description: "DEVELOPER plan" }] },
-        invoice_pdf: "https://invoice.stripe.com/i/in_001.pdf",
-        hosted_invoice_url: "https://invoice.stripe.com/i/in_001",
-      },
-    ],
-  };
+	const baseInvoiceList = {
+		data: [
+			{
+				created: 1760000000,
+				amount_paid: 1999,
+				currency: "gbp",
+				status: "paid",
+				description: null,
+				lines: { data: [{ description: "DEVELOPER plan" }] },
+				invoice_pdf: "https://invoice.stripe.com/i/in_001.pdf",
+				hosted_invoice_url: "https://invoice.stripe.com/i/in_001",
+			},
+		],
+	};
 
-  beforeEach(() => {
-    testState.authUser = { userId: "test-user-id", email: "test@example.com" };
-    mockedUserFindUnique.mockReset();
-    mockedSubscriptionsRetrieve.mockReset();
-    mockedCustomersRetrieve.mockReset();
-    mockedInvoicesCreatePreview.mockReset();
-    mockedInvoicesList.mockReset();
-  });
+	beforeEach(() => {
+		testState.authUser = { userId: "test-user-id", email: "test@example.com" };
+		mockedUserFindUnique.mockReset();
+		mockedSubscriptionsRetrieve.mockReset();
+		mockedCustomersRetrieve.mockReset();
+		mockedInvoicesCreatePreview.mockReset();
+		mockedInvoicesList.mockReset();
+	});
 
-  it("returns 401 when not authenticated", async () => {
-    testState.authUser = null;
+	it("returns 401 when not authenticated", async () => {
+		testState.authUser = null;
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Not authenticated" });
-    expect(mockedUserFindUnique).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(401);
+		expect(response.body).toEqual({ error: "Not authenticated" });
+		expect(mockedUserFindUnique).not.toHaveBeenCalled();
+	});
 
-  it("returns 404 when user is not found", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(null);
+	it("returns 404 when user is not found", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(null);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
-  });
+		expect(response.status).toBe(404);
+		expect(response.body).toEqual({ error: "User not found" });
+	});
 
-  it("returns HOBBY response without calling Stripe when no customer ID", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce({
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-      subscriptionTier: "HOBBY",
-      subscriptionStatus: "ACTIVE",
-      subscriptionEndDate: null,
-    });
+	it("returns HOBBY response without calling Stripe when no customer ID", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce({
+			stripeCustomerId: null,
+			stripeSubscriptionId: null,
+			subscriptionTier: "HOBBY",
+			subscriptionStatus: "ACTIVE",
+			subscriptionEndDate: null,
+		});
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      plan: { tier: "HOBBY", price: 0, currency: "gbp", interval: null },
-      status: "ACTIVE",
-      stripeCustomerId: null,
-      billingDetails: null,
-      paymentMethod: null,
-      upcomingInvoice: null,
-      invoices: [],
-    });
-    expect(mockedCustomersRetrieve).not.toHaveBeenCalled();
-    expect(mockedSubscriptionsRetrieve).not.toHaveBeenCalled();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({
+			plan: { tier: "HOBBY", price: 0, currency: "gbp", interval: null },
+			status: "ACTIVE",
+			stripeCustomerId: null,
+			billingDetails: null,
+			paymentMethod: null,
+			upcomingInvoice: null,
+			invoices: [],
+		});
+		expect(mockedCustomersRetrieve).not.toHaveBeenCalled();
+		expect(mockedSubscriptionsRetrieve).not.toHaveBeenCalled();
+	});
 
-  it("returns full billing data for a paid subscriber", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns full billing data for a paid subscriber", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
+		expect(response.status).toBe(200);
 
-    expect(response.body.plan).toEqual({
-      tier: "DEVELOPER",
-      price: 1999,
-      currency: "gbp",
-      interval: "month",
-    });
-    expect(response.body.status).toBe("ACTIVE");
-    expect(response.body.cancelAtPeriodEnd).toBe(false);
-    expect(response.body.currentPeriodEnd).toBe(
-      new Date(1780000000 * 1000).toISOString()
-    );
-    expect(response.body.stripeCustomerId).toBe("cus_123");
+		expect(response.body.plan).toEqual({
+			tier: "DEVELOPER",
+			price: 1999,
+			currency: "gbp",
+			interval: "month",
+		});
+		expect(response.body.status).toBe("ACTIVE");
+		expect(response.body.cancelAtPeriodEnd).toBe(false);
+		expect(response.body.currentPeriodEnd).toBe(
+			new Date(1780000000 * 1000).toISOString(),
+		);
+		expect(response.body.stripeCustomerId).toBe("cus_123");
 
-    expect(response.body.billingDetails).toEqual({
-      name: "James Winfield",
-      email: "james@example.com",
-      phone: null,
-      address: {
-        city: "London",
-        country: "GB",
-        line1: "123 Pub Lane",
-        line2: null,
-        postal_code: "SW1 1AA",
-        state: null,
-      },
-    });
+		expect(response.body.billingDetails).toEqual({
+			name: "James Winfield",
+			email: "james@example.com",
+			phone: null,
+			address: {
+				city: "London",
+				country: "GB",
+				line1: "123 Pub Lane",
+				line2: null,
+				postal_code: "SW1 1AA",
+				state: null,
+			},
+		});
 
-    expect(response.body.paymentMethod).toEqual({
-      brand: "visa",
-      expMonth: 12,
-      expYear: 2027,
-      funding: "credit",
-    });
+		expect(response.body.paymentMethod).toEqual({
+			brand: "visa",
+			expMonth: 12,
+			expYear: 2027,
+			funding: "credit",
+		});
 
-    expect(response.body.upcomingInvoice).toEqual({
-      amount: 1999,
-      currency: "gbp",
-      dueDate: new Date(1780000000 * 1000).toISOString(),
-    });
+		expect(response.body.upcomingInvoice).toEqual({
+			amount: 1999,
+			currency: "gbp",
+			dueDate: new Date(1780000000 * 1000).toISOString(),
+		});
 
-    expect(response.body.invoices).toHaveLength(1);
-    expect(response.body.invoices[0]).toEqual({
-      date: new Date(1760000000 * 1000).toISOString(),
-      amount: 1999,
-      currency: "gbp",
-      status: "paid",
-      description: "DEVELOPER plan",
-      pdfUrl: "https://invoice.stripe.com/i/in_001.pdf",
-      hostedUrl: "https://invoice.stripe.com/i/in_001",
-      billingPeriod: { start: null, end: null },
-    });
-  });
+		expect(response.body.invoices).toHaveLength(1);
+		expect(response.body.invoices[0]).toEqual({
+			date: new Date(1760000000 * 1000).toISOString(),
+			amount: 1999,
+			currency: "gbp",
+			status: "paid",
+			description: "DEVELOPER plan",
+			pdfUrl: "https://invoice.stripe.com/i/in_001.pdf",
+			hostedUrl: "https://invoice.stripe.com/i/in_001",
+			billingPeriod: { start: null, end: null },
+		});
+	});
 
-  it("falls back to customer invoice_settings payment method when subscription has none", async () => {
-    const pm = {
-      card: { brand: "mastercard", exp_month: 6, exp_year: 2026, funding: "debit" },
-    };
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce({
-      ...baseCustomer,
-      invoice_settings: { default_payment_method: pm },
-    });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      ...baseSubscription,
-      default_payment_method: null,
-    });
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("falls back to customer invoice_settings payment method when subscription has none", async () => {
+		const pm = {
+			card: {
+				brand: "mastercard",
+				exp_month: 6,
+				exp_year: 2026,
+				funding: "debit",
+			},
+		};
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce({
+			...baseCustomer,
+			invoice_settings: { default_payment_method: pm },
+		});
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			...baseSubscription,
+			default_payment_method: null,
+		});
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.paymentMethod).toEqual({
-      brand: "mastercard",
-      expMonth: 6,
-      expYear: 2026,
-      funding: "debit",
-    });
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.paymentMethod).toEqual({
+			brand: "mastercard",
+			expMonth: 6,
+			expYear: 2026,
+			funding: "debit",
+		});
+	});
 
-  it("returns null paymentMethod when payment method is an unexpanded string ID", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      ...baseSubscription,
-      default_payment_method: "pm_unexpanded_string",
-    });
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns null paymentMethod when payment method is an unexpanded string ID", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			...baseSubscription,
+			default_payment_method: "pm_unexpanded_string",
+		});
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.paymentMethod).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.paymentMethod).toBeNull();
+	});
 
-  it("returns null paymentMethod when no payment method exists", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      ...baseSubscription,
-      default_payment_method: null,
-    });
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns null paymentMethod when no payment method exists", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			...baseSubscription,
+			default_payment_method: null,
+		});
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.paymentMethod).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.paymentMethod).toBeNull();
+	});
 
-  it("returns null billingDetails when customer is deleted", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce({ deleted: true });
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns null billingDetails when customer is deleted", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce({ deleted: true });
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.billingDetails).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.billingDetails).toBeNull();
+	});
 
-  it("returns null upcomingInvoice when createPreview fails", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
-    mockedInvoicesCreatePreview.mockRejectedValueOnce(new Error("no upcoming invoice"));
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns null upcomingInvoice when createPreview fails", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+		mockedInvoicesCreatePreview.mockRejectedValueOnce(
+			new Error("no upcoming invoice"),
+		);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upcomingInvoice).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upcomingInvoice).toBeNull();
+	});
 
-  it("uses invoice description field when lines description is absent", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce({
-      data: [
-        {
-          ...baseInvoiceList.data[0],
-          description: "Manual invoice",
-          lines: { data: [] },
-        },
-      ],
-    });
+	it("uses invoice description field when lines description is absent", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce({
+			data: [
+				{
+					...baseInvoiceList.data[0],
+					description: "Manual invoice",
+					lines: { data: [] },
+				},
+			],
+		});
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.invoices[0].description).toBe("Manual invoice");
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.invoices[0].description).toBe("Manual invoice");
+	});
 
-  it("returns null dueDate when next_payment_attempt is null", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
-    mockedInvoicesCreatePreview.mockResolvedValueOnce({
-      ...baseUpcoming,
-      next_payment_attempt: null,
-    });
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("returns null dueDate when next_payment_attempt is null", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce(baseSubscription);
+		mockedInvoicesCreatePreview.mockResolvedValueOnce({
+			...baseUpcoming,
+			next_payment_attempt: null,
+		});
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.upcomingInvoice.dueDate).toBeNull();
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.upcomingInvoice.dueDate).toBeNull();
+	});
 
-  it("reflects cancelAtPeriodEnd and currentPeriodEnd from subscription", async () => {
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
-    mockedSubscriptionsRetrieve.mockResolvedValueOnce({
-      ...baseSubscription,
-      cancel_at_period_end: true,
-      current_period_end: 1790000000,
-    });
-    mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
-    mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
+	it("reflects cancelAtPeriodEnd and currentPeriodEnd from subscription", async () => {
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockResolvedValueOnce(baseCustomer);
+		mockedSubscriptionsRetrieve.mockResolvedValueOnce({
+			...baseSubscription,
+			cancel_at_period_end: true,
+			current_period_end: 1790000000,
+		});
+		mockedInvoicesCreatePreview.mockResolvedValueOnce(baseUpcoming);
+		mockedInvoicesList.mockResolvedValueOnce(baseInvoiceList);
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(200);
-    expect(response.body.cancelAtPeriodEnd).toBe(true);
-    expect(response.body.currentPeriodEnd).toBe(
-      new Date(1790000000 * 1000).toISOString()
-    );
-  });
+		expect(response.status).toBe(200);
+		expect(response.body.cancelAtPeriodEnd).toBe(true);
+		expect(response.body.currentPeriodEnd).toBe(
+			new Date(1790000000 * 1000).toISOString(),
+		);
+	});
 
-  it("returns 500 when Stripe calls fail", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedUserFindUnique.mockResolvedValueOnce(baseUser);
-    mockedCustomersRetrieve.mockRejectedValueOnce(new Error("stripe down"));
+	it("returns 500 when Stripe calls fail", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mockedUserFindUnique.mockResolvedValueOnce(baseUser);
+		mockedCustomersRetrieve.mockRejectedValueOnce(new Error("stripe down"));
 
-    const response = await request(app).get("/payments/billing");
+		const response = await request(app).get("/payments/billing");
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Something went wrong" });
-  });
+		expect(response.status).toBe(500);
+		expect(response.body).toEqual({ error: "Something went wrong" });
+	});
 });
